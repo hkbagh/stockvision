@@ -1,57 +1,60 @@
-const PURPLE = "#7c3aed";
-const TEAL   = "#0ea5e9";
-const PINK   = "#ec4899";
-const GREEN  = "#10b981";
-const AMBER  = "#f59e0b";
+const C = {
+  blue:   "#2563eb",
+  teal:   "#0891b2",
+  green:  "#059669",
+  red:    "#dc2626",
+  amber:  "#d97706",
+  purple: "#7c3aed",
+  muted:  "#94a3b8",
+  border: "#e2e8f0",
+};
 
-const BASE_OPTS = {
+const BASE = {
   responsive: true,
   maintainAspectRatio: false,
+  animation: { duration: 300 },
   interaction: { mode: "index", intersect: false },
-  animation: { duration: 400 },
   plugins: {
     legend: { display: false },
     tooltip: {
-      backgroundColor: "rgba(255,255,255,0.97)",
-      borderColor: "rgba(124,58,237,0.18)",
+      backgroundColor: "#0f172a",
+      borderColor: "#1e293b",
       borderWidth: 1,
-      titleColor: "#1e1b4b",
-      bodyColor: "#4c4a7c",
-      padding: 14,
-      cornerRadius: 12,
-      titleFont: { weight: "700", size: 13 },
-      bodyFont: { size: 12 },
+      titleColor: "#f1f5f9",
+      bodyColor:  "#cbd5e1",
+      padding: 12,
+      cornerRadius: 8,
+      titleFont: { weight: "700", size: 12 },
+      bodyFont: { size: 11 },
+      displayColors: true,
+      boxWidth: 8, boxHeight: 8, boxPadding: 4,
     },
   },
   scales: {
     x: {
       type: "time",
       time: { tooltipFormat: "dd MMM yyyy" },
-      ticks: { color: "#9b98c4", maxTicksLimit: 8, font: { size: 11 } },
-      grid: { color: "rgba(124,58,237,0.04)" },
-      border: { color: "rgba(124,58,237,0.10)" },
+      ticks: { color: C.muted, maxTicksLimit: 8, font: { size: 10 } },
+      grid: { color: "#f1f5f9" },
+      border: { color: C.border },
     },
     y: {
-      ticks: { color: "#9b98c4", font: { size: 11 } },
-      grid: { color: "rgba(124,58,237,0.04)" },
-      border: { color: "rgba(124,58,237,0.10)" },
+      ticks: { color: C.muted, font: { size: 10 } },
+      grid: { color: "#f1f5f9" },
+      border: { color: C.border },
     },
   },
 };
 
-let _priceChart  = null;
-let _volChart    = null;
-let _compareChart = null;
-let _predChart   = null;
-let _heatmapChart = null;
+let _price = null, _vol = null, _compare = null, _forecast = null;
 
-function destroy(c) { if (c) { try { c.destroy(); } catch (_) {} } }
+function dc(c) { if (c) { try { c.destroy(); } catch (_) {} } }
 
-function fmtINR(v) {
+function fINR(v) {
   if (v == null) return "—";
   return "₹" + Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-function fmtVol(v) {
+function fVol(v) {
   if (v == null) return "—";
   if (v >= 1e7) return (v / 1e7).toFixed(2) + " Cr";
   if (v >= 1e5) return (v / 1e5).toFixed(2) + " L";
@@ -59,24 +62,25 @@ function fmtVol(v) {
 }
 
 export function renderPriceChart(data) {
-  destroy(_priceChart);
-  destroy(_volChart);
+  dc(_price); dc(_vol);
+  if (!data || data.length === 0) return;
 
   const labels = data.map(d => d.date);
   const closes = data.map(d => d.close);
   const ma7    = data.map(d => d.ma_7);
   const ma30   = data.map(d => d.ma_30);
   const vols   = data.map(d => d.volume);
-  const maxVol = Math.max(...vols.filter(Boolean));
 
-  // ── Price chart ──────────────────────────────────────────
-  const priceCtx = document.getElementById("price-chart").getContext("2d");
+  const priceEl = document.getElementById("price-chart");
+  const volEl   = document.getElementById("volume-chart");
+  if (!priceEl || !volEl) return;
 
-  const gradient = priceCtx.createLinearGradient(0, 0, 0, 340);
-  gradient.addColorStop(0, "rgba(124,58,237,0.18)");
-  gradient.addColorStop(1, "rgba(124,58,237,0.00)");
+  const ctx = priceEl.getContext("2d");
+  const grad = ctx.createLinearGradient(0, 0, 0, 300);
+  grad.addColorStop(0, "rgba(37,99,235,0.14)");
+  grad.addColorStop(1, "rgba(37,99,235,0.00)");
 
-  _priceChart = new Chart(priceCtx, {
+  _price = new Chart(ctx, {
     type: "line",
     data: {
       labels,
@@ -84,61 +88,66 @@ export function renderPriceChart(data) {
         {
           label: "Close",
           data: closes,
-          borderColor: PURPLE,
-          backgroundColor: gradient,
-          borderWidth: 2.5,
+          borderColor: C.blue,
+          backgroundColor: grad,
+          borderWidth: 2,
           pointRadius: 0,
-          pointHoverRadius: 6,
-          pointHoverBackgroundColor: PURPLE,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: C.blue,
           pointHoverBorderColor: "#fff",
           pointHoverBorderWidth: 2,
           fill: true,
-          tension: 0.3,
+          tension: 0.25,
         },
         {
           label: "MA 7",
           data: ma7,
-          borderColor: TEAL,
+          borderColor: C.teal,
           borderWidth: 1.5,
-          borderDash: [5, 4],
+          borderDash: [4, 3],
           pointRadius: 0,
           fill: false,
-          tension: 0.3,
+          tension: 0.25,
         },
         {
           label: "MA 30",
           data: ma30,
-          borderColor: PINK,
+          borderColor: C.amber,
           borderWidth: 1.5,
-          borderDash: [8, 4],
+          borderDash: [7, 3],
           pointRadius: 0,
           fill: false,
-          tension: 0.3,
+          tension: 0.25,
         },
       ],
     },
     options: {
-      ...BASE_OPTS,
+      ...BASE,
       plugins: {
-        ...BASE_OPTS.plugins,
+        ...BASE.plugins,
         tooltip: {
-          ...BASE_OPTS.plugins.tooltip,
+          ...BASE.plugins.tooltip,
           callbacks: {
             title: items => {
               const i = items[0].dataIndex;
               const d = data[i];
-              return `${items[0].label}  O:${fmtINR(d.open)}  H:${fmtINR(d.high)}  L:${fmtINR(d.low)}`;
+              return `${items[0].label}`;
+            },
+            afterTitle: items => {
+              const i = items[0].dataIndex;
+              const d = data[i];
+              return `O:${fINR(d.open)}  H:${fINR(d.high)}  L:${fINR(d.low)}`;
             },
             label: ctx => {
-              const map = { "Close": PURPLE, "MA 7": TEAL, "MA 30": PINK };
-              return `  ${ctx.dataset.label}: ${fmtINR(ctx.parsed.y)}`;
+              if (ctx.dataset.label === "Close")
+                return ` Close: ${fINR(ctx.parsed.y)}`;
+              return ` ${ctx.dataset.label}: ${fINR(ctx.parsed.y)}`;
             },
             afterBody: items => {
               const i = items[0].dataIndex;
               const ret = data[i]?.daily_return;
               if (ret == null) return [];
-              const sign = ret >= 0 ? "▲" : "▼";
-              return [`  Return: ${sign} ${Math.abs(ret * 100).toFixed(2)}%`];
+              return [` Return: ${ret >= 0 ? "▲" : "▼"} ${Math.abs(ret * 100).toFixed(2)}%`];
             },
           },
         },
@@ -146,15 +155,14 @@ export function renderPriceChart(data) {
     },
   });
 
-  // ── Volume chart ─────────────────────────────────────────
-  const volCtx = document.getElementById("volume-chart").getContext("2d");
+  // Volume chart
   const volColors = data.map((d, i) => {
-    if (i === 0) return "rgba(124,58,237,0.35)";
+    if (i === 0) return "rgba(37,99,235,0.4)";
     const prev = data[i - 1]?.close ?? d.close;
-    return d.close >= prev ? "rgba(16,185,129,0.50)" : "rgba(244,63,94,0.50)";
+    return d.close >= prev ? "rgba(5,150,105,0.5)" : "rgba(220,38,38,0.5)";
   });
 
-  _volChart = new Chart(volCtx, {
+  _vol = new Chart(volEl.getContext("2d"), {
     type: "bar",
     data: {
       labels,
@@ -162,237 +170,178 @@ export function renderPriceChart(data) {
         label: "Volume",
         data: vols,
         backgroundColor: volColors,
-        borderColor: "transparent",
-        borderRadius: 2,
-        borderSkipped: false,
+        borderWidth: 0,
+        borderRadius: 1,
       }],
     },
     options: {
-      ...BASE_OPTS,
+      ...BASE,
       plugins: {
-        ...BASE_OPTS.plugins,
+        ...BASE.plugins,
         tooltip: {
-          ...BASE_OPTS.plugins.tooltip,
-          callbacks: {
-            label: ctx => `  Volume: ${fmtVol(ctx.parsed.y)}`,
-          },
+          ...BASE.plugins.tooltip,
+          callbacks: { label: ctx => ` Vol: ${fVol(ctx.parsed.y)}` },
         },
       },
       scales: {
-        x: { ...BASE_OPTS.scales.x, ticks: { display: false } },
+        x: { ...BASE.scales.x, ticks: { display: false }, grid: { display: false } },
         y: {
-          ticks: { color: "#9b98c4", font: { size: 10 }, maxTicksLimit: 3,
-            callback: v => fmtVol(v) },
-          grid: { color: "rgba(124,58,237,0.04)" },
-          border: { color: "rgba(124,58,237,0.10)" },
+          ticks: { color: C.muted, font: { size: 9 }, maxTicksLimit: 2, callback: v => fVol(v) },
+          grid: { color: "#f8fafc" },
+          border: { color: C.border },
         },
       },
     },
   });
 
-  // Build custom legend
-  buildPriceLegend([
-    { label: "Close", color: PURPLE, dash: false },
-    { label: "MA 7",  color: TEAL,   dash: true },
-    { label: "MA 30", color: PINK,   dash: true },
-  ]);
-}
-
-function buildPriceLegend(items) {
-  const el = document.getElementById("price-legend");
-  if (!el) return;
-  el.innerHTML = items.map(({ label, color, dash }) => `
-    <span class="legend-item">
-      <span class="legend-line" style="background:${color};${dash ? "opacity:.7" : ""}"></span>
-      ${label}
-    </span>`).join("");
+  // Legend
+  const leg = document.getElementById("price-legend");
+  if (leg) {
+    leg.innerHTML = [
+      { label: "Close", color: C.blue, type: "dot" },
+      { label: "MA 7",  color: C.teal,  type: "dash" },
+      { label: "MA 30", color: C.amber, type: "dash" },
+    ].map(({ label, color, type }) => `
+      <span class="legend-item">
+        <span class="${type === "dot" ? "legend-dot" : "legend-dash"}" style="background:${color}"></span>
+        ${label}
+      </span>`).join("");
+  }
 }
 
 export function renderCompareChart(sym1, data1, sym2, data2, normalized = false) {
-  destroy(_compareChart);
-  const ctx = document.getElementById("compare-chart").getContext("2d");
+  dc(_compare);
+  const el = document.getElementById("compare-chart");
+  if (!el) return;
 
   const map1 = Object.fromEntries(data1.map(d => [d.date, d.close]));
   const map2 = Object.fromEntries(data2.map(d => [d.date, d.close]));
-  const allLabels = [...new Set([...data1.map(d => d.date), ...data2.map(d => d.date)])].sort();
+  const labels = [...new Set([...data1.map(d => d.date), ...data2.map(d => d.date)])].sort();
 
-  let series1 = allLabels.map(d => map1[d] ?? null);
-  let series2 = allLabels.map(d => map2[d] ?? null);
+  let s1 = labels.map(d => map1[d] ?? null);
+  let s2 = labels.map(d => map2[d] ?? null);
 
   if (normalized) {
-    const base1 = series1.find(v => v != null) ?? 1;
-    const base2 = series2.find(v => v != null) ?? 1;
-    series1 = series1.map(v => v != null ? +((v / base1 - 1) * 100).toFixed(4) : null);
-    series2 = series2.map(v => v != null ? +((v / base2 - 1) * 100).toFixed(4) : null);
+    const b1 = s1.find(v => v != null) ?? 1;
+    const b2 = s2.find(v => v != null) ?? 1;
+    s1 = s1.map(v => v != null ? +((v / b1 - 1) * 100).toFixed(3) : null);
+    s2 = s2.map(v => v != null ? +((v / b2 - 1) * 100).toFixed(3) : null);
   }
 
-  const fmtLabel = (v, sym) => normalized
-    ? `  ${sym}: ${v >= 0 ? "+" : ""}${v?.toFixed(2)}%`
-    : `  ${sym}: ${fmtINR(v)}`;
+  const fLbl = (v, sym) => normalized
+    ? ` ${sym}: ${v >= 0 ? "+" : ""}${v?.toFixed(2)}%`
+    : ` ${sym}: ${fINR(v)}`;
 
-  _compareChart = new Chart(ctx, {
+  const yScales = normalized
+    ? { y: { ...BASE.scales.y, ticks: { ...BASE.scales.y.ticks, callback: v => (v >= 0 ? "+" : "") + v.toFixed(1) + "%" } } }
+    : {
+        y:  { ...BASE.scales.y, position: "left",  title: { display: true, text: sym1, color: C.blue,   font: { size: 10 } } },
+        y1: { ...BASE.scales.y, position: "right", grid: { drawOnChartArea: false },
+              title: { display: true, text: sym2, color: C.purple, font: { size: 10 } } },
+      };
+
+  _compare = new Chart(el.getContext("2d"), {
     type: "line",
     data: {
-      labels: allLabels,
+      labels,
       datasets: [
-        {
-          label: sym1,
-          data: series1,
-          borderColor: PURPLE,
-          backgroundColor: "rgba(124,58,237,.07)",
-          borderWidth: 2.5,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          fill: true,
-          tension: 0.3,
-          yAxisID: normalized ? "y" : "y",
-        },
-        {
-          label: sym2,
-          data: series2,
-          borderColor: TEAL,
-          backgroundColor: "rgba(14,165,233,.07)",
-          borderWidth: 2.5,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          fill: true,
-          tension: 0.3,
-          yAxisID: normalized ? "y" : "y1",
-        },
+        { label: sym1, data: s1, borderColor: C.blue,   backgroundColor: "rgba(37,99,235,.06)",  borderWidth: 2, pointRadius: 0, fill: true, tension: 0.25, yAxisID: normalized ? "y" : "y" },
+        { label: sym2, data: s2, borderColor: C.purple, backgroundColor: "rgba(124,58,237,.06)", borderWidth: 2, pointRadius: 0, fill: true, tension: 0.25, yAxisID: normalized ? "y" : "y1" },
       ],
     },
     options: {
-      ...BASE_OPTS,
+      ...BASE,
       plugins: {
-        ...BASE_OPTS.plugins,
-        legend: {
-          display: true,
-          labels: { color: "#4c4a7c", boxWidth: 10, font: { size: 12 }, usePointStyle: true },
-        },
-        tooltip: {
-          ...BASE_OPTS.plugins.tooltip,
-          callbacks: {
-            label: ctx => fmtLabel(ctx.parsed.y, ctx.dataset.label),
-          },
-        },
+        ...BASE.plugins,
+        legend: { display: true, labels: { color: "#475569", boxWidth: 8, font: { size: 11 }, usePointStyle: true } },
+        tooltip: { ...BASE.plugins.tooltip, callbacks: { label: ctx => fLbl(ctx.parsed.y, ctx.dataset.label) } },
       },
-      scales: normalized
-        ? {
-          x: BASE_OPTS.scales.x,
-          y: {
-            ...BASE_OPTS.scales.y,
-            ticks: {
-              ...BASE_OPTS.scales.y.ticks,
-              callback: v => (v >= 0 ? "+" : "") + v.toFixed(1) + "%",
-            },
-          },
-        }
-        : {
-          x: BASE_OPTS.scales.x,
-          y: {
-            ...BASE_OPTS.scales.y,
-            position: "left",
-            title: { display: true, text: sym1, color: PURPLE, font: { size: 11 } },
-          },
-          y1: {
-            ...BASE_OPTS.scales.y,
-            position: "right",
-            grid: { drawOnChartArea: false },
-            title: { display: true, text: sym2, color: TEAL, font: { size: 11 } },
-          },
-        },
+      scales: { x: BASE.scales.x, ...yScales },
     },
   });
 }
 
-export function renderPredictionChart(histData, predictions) {
-  destroy(_predChart);
-  const ctx = document.getElementById("prediction-chart").getContext("2d");
+export function renderForecastChart(histData, predictions) {
+  dc(_forecast);
+  const el = document.getElementById("forecast-chart");
+  if (!el) return;
 
-  const histLabels = histData.slice(-30).map(d => d.date);
-  const histClose  = histData.slice(-30).map(d => d.close);
-  const predLabels = predictions.map(p => p.date);
-  const predClose  = predictions.map(p => p.predicted_close);
+  const hist30 = histData.slice(-60);
+  const hLabels = hist30.map(d => d.date);
+  const hClose  = hist30.map(d => d.close);
 
-  const bridge = histClose[histClose.length - 1];
-  const predWithBridge  = [bridge, ...predClose];
-  const labelsWithBridge = [histLabels[histLabels.length - 1], ...predLabels];
+  const pLabels = predictions.map(p => p.date);
+  const pClose  = predictions.map(p => p.predicted_close);
 
-  const allLabels = [...histLabels, ...predLabels.filter(d => !histLabels.includes(d))];
+  const bridge = hClose[hClose.length - 1];
+  const pWithBridge  = [bridge, ...pClose];
+  const lWithBridge  = [hLabels[hLabels.length - 1], ...pLabels];
 
-  _predChart = new Chart(ctx, {
+  const ctx = el.getContext("2d");
+  const gradH = ctx.createLinearGradient(0, 0, 0, 320);
+  gradH.addColorStop(0, "rgba(37,99,235,0.12)");
+  gradH.addColorStop(1, "rgba(37,99,235,0.00)");
+
+  _forecast = new Chart(ctx, {
     type: "line",
     data: {
       datasets: [
         {
           label: "Historical",
-          data: histLabels.map((d, i) => ({ x: d, y: histClose[i] })),
-          borderColor: PURPLE,
-          backgroundColor: "rgba(124,58,237,.08)",
-          borderWidth: 2.5,
+          data: hLabels.map((d, i) => ({ x: d, y: hClose[i] })),
+          borderColor: C.blue,
+          backgroundColor: gradH,
+          borderWidth: 2,
           pointRadius: 0,
-          pointHoverRadius: 5,
-          fill: true,
-          tension: 0.3,
+          pointHoverRadius: 4,
+          fill: true, tension: 0.25,
         },
         {
           label: "AI Forecast",
-          data: labelsWithBridge.map((d, i) => ({ x: d, y: predWithBridge[i] })),
-          borderColor: TEAL,
-          borderDash: [7, 4],
+          data: lWithBridge.map((d, i) => ({ x: d, y: pWithBridge[i] })),
+          borderColor: C.green,
+          borderDash: [6, 3],
           borderWidth: 2.5,
-          pointRadius: (ctx) => ctx.dataIndex === 0 ? 0 : 6,
-          pointBackgroundColor: TEAL,
+          pointRadius: (c) => c.dataIndex === 0 ? 0 : 5,
+          pointBackgroundColor: C.green,
           pointBorderColor: "#fff",
           pointBorderWidth: 2,
-          fill: false,
-          tension: 0.2,
+          fill: false, tension: 0.2,
         },
         {
-          label: "Forecast Band",
-          data: labelsWithBridge.map((d, i) => ({
-            x: d,
-            y: i === 0 ? null : predWithBridge[i] * 1.015,
-          })),
+          label: "_hi",
+          data: lWithBridge.map((d, i) => ({ x: d, y: i === 0 ? null : pWithBridge[i] * 1.02 })),
           borderColor: "transparent",
-          backgroundColor: "rgba(14,165,233,0.08)",
-          borderWidth: 0,
-          pointRadius: 0,
-          fill: "+1",
-          tension: 0.2,
+          backgroundColor: "rgba(5,150,105,0.07)",
+          borderWidth: 0, pointRadius: 0,
+          fill: "+1", tension: 0.2,
         },
         {
-          label: "_band_low",
-          data: labelsWithBridge.map((d, i) => ({
-            x: d,
-            y: i === 0 ? null : predWithBridge[i] * 0.985,
-          })),
+          label: "_lo",
+          data: lWithBridge.map((d, i) => ({ x: d, y: i === 0 ? null : pWithBridge[i] * 0.98 })),
           borderColor: "transparent",
-          backgroundColor: "rgba(14,165,233,0.08)",
-          borderWidth: 0,
-          pointRadius: 0,
-          fill: false,
-          tension: 0.2,
+          backgroundColor: "rgba(5,150,105,0.07)",
+          borderWidth: 0, pointRadius: 0,
+          fill: false, tension: 0.2,
         },
       ],
     },
     options: {
-      ...BASE_OPTS,
+      ...BASE,
       plugins: {
-        ...BASE_OPTS.plugins,
+        ...BASE.plugins,
         legend: {
           display: true,
           labels: {
-            color: "#4c4a7c",
-            filter: item => !item.text.startsWith("_") && item.text !== "Forecast Band",
-            usePointStyle: true,
+            color: "#475569", font: { size: 11 }, usePointStyle: true,
+            filter: item => !item.text.startsWith("_"),
           },
         },
         tooltip: {
-          ...BASE_OPTS.plugins.tooltip,
-          filter: item => !item.dataset.label.startsWith("_") && item.dataset.label !== "Forecast Band",
+          ...BASE.plugins.tooltip,
+          filter: item => !item.dataset.label.startsWith("_"),
           callbacks: {
-            label: ctx => `  ${ctx.dataset.label}: ${fmtINR(ctx.parsed.y)}`,
+            label: ctx => ` ${ctx.dataset.label}: ${fINR(ctx.parsed.y)}`,
           },
         },
       },
@@ -401,39 +350,37 @@ export function renderPredictionChart(histData, predictions) {
 }
 
 export function renderCorrelationHeatmap(symbols, matrix) {
-  const n = symbols.length;
-  const cellSize = 34;
-  const labelPad = 88;
-  const w = n * cellSize + labelPad;
-  const h = n * cellSize + labelPad;
+  const n   = symbols.length;
+  const cell = 36;
+  const pad  = 90;
+  const W = n * cell + pad;
+  const H = n * cell + pad + 24;
 
   const canvas = document.getElementById("heatmap-chart");
-  canvas.width  = w;
-  canvas.height = h;
+  canvas.width  = W;
+  canvas.height = H;
   canvas.style.maxWidth = "100%";
   const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, W, H);
 
-  ctx.clearRect(0, 0, w, h);
+  const names = symbols.map(s => s.replace(".NS", ""));
 
-  const shortNames = symbols.map(s => s.replace(".NS", ""));
-
-  // Row labels (left)
-  ctx.font = "bold 10px Inter, sans-serif";
-  ctx.fillStyle = "#4c4a7c";
+  // Row labels
+  ctx.font = "600 10px Inter,sans-serif";
+  ctx.fillStyle = "#475569";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   for (let i = 0; i < n; i++) {
-    ctx.fillText(shortNames[i], labelPad - 8, labelPad + i * cellSize + cellSize / 2);
+    ctx.fillText(names[i], pad - 8, pad + i * cell + cell / 2);
   }
 
-  // Column labels (top, rotated)
-  ctx.textAlign = "left";
-  ctx.textBaseline = "bottom";
+  // Col labels (rotated)
+  ctx.textAlign = "left"; ctx.textBaseline = "bottom";
   for (let j = 0; j < n; j++) {
     ctx.save();
-    ctx.translate(labelPad + j * cellSize + cellSize / 2, labelPad - 6);
+    ctx.translate(pad + j * cell + cell / 2, pad - 6);
     ctx.rotate(-Math.PI / 4);
-    ctx.fillText(shortNames[j], 0, 0);
+    ctx.fillText(names[j], 0, 0);
     ctx.restore();
   }
 
@@ -441,55 +388,46 @@ export function renderCorrelationHeatmap(symbols, matrix) {
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
       const val = matrix[i]?.[j];
-      const x = labelPad + j * cellSize;
-      const y = labelPad + i * cellSize;
-      const gap = 2;
+      const x = pad + j * cell + 1;
+      const y = pad + i * cell + 1;
+      const sz = cell - 2;
+      const r = 5;
 
       if (i === j) {
-        ctx.fillStyle = "rgba(124,58,237,0.65)";
+        ctx.fillStyle = "#1d4ed8";
       } else if (val == null) {
-        ctx.fillStyle = "#f0eeff";
+        ctx.fillStyle = "#f1f5f9";
       } else {
         const abs = Math.abs(val);
         ctx.fillStyle = val >= 0
-          ? `rgba(16,185,129,${0.08 + abs * 0.72})`
-          : `rgba(244,63,94,${0.08 + abs * 0.72})`;
+          ? `rgba(5,150,105,${0.1 + abs * 0.75})`
+          : `rgba(220,38,38,${0.1 + abs * 0.75})`;
       }
-
       ctx.beginPath();
-      ctx.roundRect(x + gap / 2, y + gap / 2, cellSize - gap, cellSize - gap, 4);
+      ctx.roundRect(x, y, sz, sz, r);
       ctx.fill();
 
-      // Value text
       if (val != null) {
-        ctx.fillStyle = (i === j || Math.abs(val) > 0.6) ? "#fff" : "#4c4a7c";
-        ctx.font = `${i === j ? "bold " : ""}9px Inter, sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(i === j ? "1" : val.toFixed(2), x + cellSize / 2, y + cellSize / 2);
+        ctx.fillStyle = (i === j || Math.abs(val) > 0.55) ? "#fff" : "#475569";
+        ctx.font = `${i === j ? "700 " : ""}9px Inter,sans-serif`;
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(i === j ? "1.00" : val.toFixed(2), x + sz / 2, y + sz / 2);
       }
     }
   }
 
-  // Colour legend
-  const lgX = labelPad;
-  const lgY = h - 18;
-  const lgW = n * cellSize;
-  const lgH = 8;
-  const grad = ctx.createLinearGradient(lgX, 0, lgX + lgW, 0);
-  grad.addColorStop(0,   "rgba(244,63,94,0.80)");
-  grad.addColorStop(0.5, "rgba(200,200,220,0.30)");
-  grad.addColorStop(1,   "rgba(16,185,129,0.80)");
+  // Legend
+  const lx = pad, ly = H - 18, lw = n * cell;
+  const grad = ctx.createLinearGradient(lx, 0, lx + lw, 0);
+  grad.addColorStop(0,   "rgba(220,38,38,0.85)");
+  grad.addColorStop(0.5, "rgba(203,213,225,0.4)");
+  grad.addColorStop(1,   "rgba(5,150,105,0.85)");
   ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.roundRect(lgX, lgY, lgW, lgH, 4);
-  ctx.fill();
-
-  ctx.fillStyle = "#9b98c4";
-  ctx.font = "9px Inter, sans-serif";
-  ctx.textAlign = "left";   ctx.fillText("-1", lgX, lgY + lgH + 10);
-  ctx.textAlign = "center"; ctx.fillText("0",  lgX + lgW / 2, lgY + lgH + 10);
-  ctx.textAlign = "right";  ctx.fillText("+1", lgX + lgW,     lgY + lgH + 10);
+  ctx.beginPath(); ctx.roundRect(lx, ly, lw, 7, 3); ctx.fill();
+  ctx.fillStyle = "#94a3b8"; ctx.font = "9px Inter,sans-serif";
+  ctx.textAlign = "left";   ctx.fillText("-1",  lx,          ly + 7 + 9);
+  ctx.textAlign = "center"; ctx.fillText("0",   lx + lw / 2, ly + 7 + 9);
+  ctx.textAlign = "right";  ctx.fillText("+1",  lx + lw,     ly + 7 + 9);
 }
 
-window.Charts = { renderPriceChart, renderCompareChart, renderPredictionChart, renderCorrelationHeatmap };
+window.Charts = { renderPriceChart, renderCompareChart, renderForecastChart, renderCorrelationHeatmap };

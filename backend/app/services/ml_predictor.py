@@ -20,12 +20,16 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 def _build_features(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
     df = df.copy().sort_values("date")
     df["day_of_year"] = pd.to_datetime(df["date"]).dt.dayofyear
-    df["volume_z"] = (df["volume"] - df["volume"].rolling(30, min_periods=1).mean()) / (
-        df["volume"].rolling(30, min_periods=1).std() + 1e-9
+    df["volume_z"] = (
+        (df["volume"] - df["volume"].rolling(30, min_periods=1).mean())
+        / (df["volume"].rolling(30, min_periods=1).std().replace(0, np.nan).fillna(1) + 1e-9)
     )
-    df["ret_lag1"] = df["daily_return"].shift(1)
-    df["ret_lag2"] = df["daily_return"].shift(2)
-    df = df.dropna(subset=["ma_7", "ma_30", "volatility", "ret_lag1", "ret_lag2", "close"])
+    df["ret_lag1"] = df["daily_return"].shift(1).fillna(0.0)
+    df["ret_lag2"] = df["daily_return"].shift(2).fillna(0.0)
+    df["ma_7"]     = df["ma_7"].fillna(df["close"])
+    df["ma_30"]    = df["ma_30"].fillna(df["close"])
+    df["volatility"] = df["volatility"].fillna(0.0)
+    df = df.dropna(subset=["close"])
 
     feature_cols = ["day_of_year", "ma_7", "ma_30", "volatility", "volume_z", "ret_lag1", "ret_lag2"]
     X = df[feature_cols].values
@@ -40,15 +44,18 @@ def _train_model(X: np.ndarray, y: np.ndarray):
     from sklearn.metrics import mean_absolute_error
 
     model = LinearRegression()
-    tscv = TimeSeriesSplit(n_splits=5)
+    n_splits = min(5, max(2, len(X) // 10))
+    tscv = TimeSeriesSplit(n_splits=n_splits)
     maes = []
     for train_idx, val_idx in tscv.split(X):
+        if len(train_idx) < 5 or len(val_idx) < 1:
+            continue
         model.fit(X[train_idx], y[train_idx])
         preds = model.predict(X[val_idx])
         maes.append(mean_absolute_error(y[val_idx], preds))
 
     model.fit(X, y)
-    avg_mae = float(np.mean(maes))
+    avg_mae = float(np.mean(maes)) if maes else float(np.std(y))
     return model, avg_mae
 
 
@@ -77,12 +84,12 @@ async def train_and_predict(session: AsyncSession, symbol: str) -> Optional[Dict
             "close": p.close,
             "volume": p.volume or 0,
             "daily_return": m.daily_return if m else 0.0,
-            "ma_7": m.ma_7 if m else p.close,
-            "ma_30": m.ma_30 if m else p.close,
+            "ma_7":    m.ma_7    if m else p.close,
+            "ma_30":   m.ma_30   if m else p.close,
             "volatility": m.volatility if m else 0.0,
         })
 
-    if len(rows) < 60:
+    if len(rows) < 20:
         logger.warning(f"{symbol}: insufficient data for ML ({len(rows)} rows)")
         return None
 
@@ -91,14 +98,16 @@ async def train_and_predict(session: AsyncSession, symbol: str) -> Optional[Dict
     loop = asyncio.get_event_loop()
     try:
         X, y = await loop.run_in_executor(None, _build_features, df)
-        if len(X) < 30:
+        if len(X) < 10:
+            logger.warning(f"{symbol}: too few feature rows ({len(X)})")
             return None
         model, mae = await loop.run_in_executor(None, _train_model, X, y)
     except Exception as e:
         logger.error(f"{symbol}: training failed: {e}")
         return None
 
-    confidence = "high" if mae < 0.02 * float(df["close"].iloc[-1]) else "low"
+    last_close = float(df["close"].iloc[-1])
+    confidence = "high" if mae < 0.03 * last_close else "medium" if mae < 0.06 * last_close else "low"
     logger.info(f"{symbol}: MAE={mae:.2f}, confidence={confidence}")
 
     last_row = df.iloc[-1]

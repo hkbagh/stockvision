@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StockVision — NSE/BSE Market Dashboard</title>
+  <title>StockVision — NSE/BSE Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
@@ -12,229 +12,231 @@
 </head>
 <body>
 
-  <!-- Header -->
-  <header class="header">
-    <a class="header-brand" href="#">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-        <polyline points="16 7 22 7 22 13"/>
-      </svg>
-      StockVision
-    </a>
-    <div class="header-meta">
-      <span id="market-status" class="badge badge-closed">
-        <span class="badge-dot"></span> Market Closed
-      </span>
-      <span id="last-updated" class="header-time">Loading…</span>
+<header class="topbar">
+  <div class="topbar-brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+      <polyline points="16 7 22 7 22 13"/>
+    </svg>
+    StockVision
+  </div>
+  <div class="topbar-right">
+    <div id="market-status" class="market-pill closed">
+      <span class="pill-dot"></span><span class="pill-text">Market Closed</span>
     </div>
-  </header>
+    <span id="last-updated" class="topbar-time">—</span>
+  </div>
+</header>
 
-  <div class="layout">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="sidebar-search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+<div class="app-shell">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-icon">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input id="search-input" type="text" placeholder="Search stocks…" autocomplete="off" />
+    </div>
+    <div class="sidebar-label">ALL STOCKS</div>
+    <ul id="company-list" class="company-list"></ul>
+    <div class="sidebar-movers">
+      <div class="sidebar-label">TOP GAINERS</div>
+      <ul id="gainers-list" class="mover-list"></ul>
+      <div class="sidebar-label" style="margin-top:8px">TOP LOSERS</div>
+      <ul id="losers-list" class="mover-list"></ul>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <div id="loading-screen" class="loading-screen">
+      <div class="loading-spinner"></div>
+      <p>Loading market data…</p>
+    </div>
+
+    <div id="welcome-screen" class="welcome-screen hidden">
+      <div class="welcome-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+          <polyline points="16 7 22 7 22 13"/>
         </svg>
-        <input type="text" id="search-input" placeholder="Search stocks…" autocomplete="off" />
       </div>
+      <h2>Select a stock to begin</h2>
+      <p>Choose any company from the sidebar to view live charts, key metrics, and AI-powered price predictions.</p>
+    </div>
 
-      <div class="sidebar-scroll">
-        <div class="sidebar-section-title">All Stocks</div>
-        <ul id="company-list" class="company-list"></ul>
+    <div id="dashboard" class="dashboard hidden">
 
-        <div class="sidebar-movers">
-          <div class="sidebar-divider"></div>
-          <div class="sidebar-section-title mt-8">Top Gainers</div>
-          <ul id="gainers-list" class="mover-list"></ul>
-          <div class="sidebar-section-title mt-8">Top Losers</div>
-          <ul id="losers-list" class="mover-list"></ul>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Main content -->
-    <main class="main">
-
-      <!-- Loading overlay -->
-      <div id="loading-overlay" class="loading-overlay">
-        <div class="spinner"></div>
-        <p>Fetching market data…</p>
-      </div>
-
-      <!-- Welcome state -->
-      <div id="welcome-state" class="welcome-state hidden">
-        <div class="welcome-icon">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
-            <polyline points="16 7 22 7 22 13"/>
-          </svg>
-        </div>
-        <h2>Select a stock to begin</h2>
-        <p>Choose any company from the sidebar to view live charts, key metrics, and AI-powered price predictions.</p>
-      </div>
-
-      <!-- Dashboard -->
-      <div id="dashboard" class="hidden">
-
-        <!-- Stock header -->
-        <div class="stock-header">
-          <div class="stock-header-left">
-            <div id="stock-logo" class="stock-logo">--</div>
-            <div>
-              <h1 id="stock-name" class="stock-title"></h1>
-              <div class="stock-tags">
-                <span id="stock-symbol" class="badge badge-sector"></span>
-                <span id="stock-sector" class="badge badge-sector"></span>
-              </div>
+      <!-- Stock banner -->
+      <div class="stock-banner">
+        <div class="stock-identity">
+          <div id="stock-avatar" class="stock-avatar">—</div>
+          <div>
+            <div class="stock-name-row">
+              <h1 id="stock-name"></h1>
+              <span id="stock-symbol-tag" class="tag tag-blue"></span>
+              <span id="stock-sector-tag" class="tag tag-gray"></span>
             </div>
-          </div>
-          <div class="stock-price-block">
-            <div id="stock-price" class="stock-price">—</div>
-            <div id="stock-return" class="stock-return up">—</div>
+            <div id="stock-exchange" class="stock-exchange">NSE · India</div>
           </div>
         </div>
+        <div class="stock-price-col">
+          <div id="stock-price" class="stock-price">—</div>
+          <div id="stock-change" class="stock-change">—</div>
+        </div>
+      </div>
 
-        <!-- OHLC + Volume stats row -->
-        <div class="ohlc-row" id="ohlc-row">
-          <div class="ohlc-item">
-            <span class="ohlc-label">Open</span>
-            <span id="ohlc-open" class="ohlc-value">—</span>
-          </div>
-          <div class="ohlc-sep"></div>
-          <div class="ohlc-item">
-            <span class="ohlc-label">High</span>
-            <span id="ohlc-high" class="ohlc-value text-green">—</span>
-          </div>
-          <div class="ohlc-sep"></div>
-          <div class="ohlc-item">
-            <span class="ohlc-label">Low</span>
-            <span id="ohlc-low" class="ohlc-value text-red">—</span>
-          </div>
-          <div class="ohlc-sep"></div>
-          <div class="ohlc-item">
-            <span class="ohlc-label">Volume</span>
-            <span id="ohlc-volume" class="ohlc-value">—</span>
-          </div>
-          <div class="ohlc-sep"></div>
-          <div class="ohlc-item ohlc-range52">
-            <span class="ohlc-label">52W Range</span>
-            <div class="range52-bar-wrap">
-              <span id="range52-low" class="range52-end">—</span>
-              <div class="range52-bar">
-                <div class="range52-fill" id="range52-fill" style="width:0%"></div>
-                <div class="range52-dot" id="range52-dot" style="left:0%"></div>
-              </div>
-              <span id="range52-high" class="range52-end">—</span>
+      <!-- OHLCV bar -->
+      <div class="ohlcv-bar">
+        <div class="ohlcv-item">
+          <span class="ohlcv-label">Open</span>
+          <span id="stat-open" class="ohlcv-val">—</span>
+        </div>
+        <div class="ohlcv-div"></div>
+        <div class="ohlcv-item">
+          <span class="ohlcv-label">High</span>
+          <span id="stat-high" class="ohlcv-val green">—</span>
+        </div>
+        <div class="ohlcv-div"></div>
+        <div class="ohlcv-item">
+          <span class="ohlcv-label">Low</span>
+          <span id="stat-low" class="ohlcv-val red">—</span>
+        </div>
+        <div class="ohlcv-div"></div>
+        <div class="ohlcv-item">
+          <span class="ohlcv-label">Prev Close</span>
+          <span id="stat-close" class="ohlcv-val">—</span>
+        </div>
+        <div class="ohlcv-div"></div>
+        <div class="ohlcv-item">
+          <span class="ohlcv-label">Volume</span>
+          <span id="stat-volume" class="ohlcv-val">—</span>
+        </div>
+        <div class="ohlcv-div"></div>
+        <div class="ohlcv-item ohlcv-range">
+          <span class="ohlcv-label">52W Range</span>
+          <div class="range-widget">
+            <span id="range-lo" class="range-end">—</span>
+            <div class="range-track">
+              <div class="range-fill" id="range-fill"></div>
+              <div class="range-thumb" id="range-thumb"></div>
             </div>
+            <span id="range-hi" class="range-end">—</span>
           </div>
         </div>
+      </div>
 
-        <!-- Summary cards -->
-        <div class="cards-row">
-          <div class="card green">
-            <div class="card-label">52W High</div>
-            <div id="card-52h" class="card-value">—</div>
-            <div class="card-sub">All-time high (1 year)</div>
-          </div>
-          <div class="card red">
-            <div class="card-label">52W Low</div>
-            <div id="card-52l" class="card-value">—</div>
-            <div class="card-sub">All-time low (1 year)</div>
-          </div>
-          <div class="card blue">
-            <div class="card-label">Avg Close (1Y)</div>
-            <div id="card-avg" class="card-value">—</div>
-            <div class="card-sub">365-day average</div>
-          </div>
-          <div class="card yellow">
-            <div class="card-label">Volatility</div>
-            <div id="card-vol" class="card-value">—</div>
-            <div class="card-sub">Annualised (30d)</div>
-          </div>
-          <div class="card purple">
-            <div class="card-label">AI Forecast</div>
-            <div id="card-pred" class="card-value">—</div>
-            <div class="card-sub">Next trading day</div>
+      <!-- KPI cards -->
+      <div class="kpi-row">
+        <div class="kpi-card kpi-green">
+          <div class="kpi-icon">↑</div>
+          <div class="kpi-body">
+            <div class="kpi-label">52W High</div>
+            <div id="kpi-52h" class="kpi-value">—</div>
           </div>
         </div>
-
-        <!-- Chart controls -->
-        <div class="chart-controls">
-          <div class="tab-group">
-            <button class="tab-btn active" data-tab="price">Price Chart</button>
-            <button class="tab-btn" data-tab="compare">Compare</button>
-            <button class="tab-btn" data-tab="prediction">AI Forecast</button>
-            <button class="tab-btn" data-tab="heatmap">Correlation</button>
+        <div class="kpi-card kpi-red">
+          <div class="kpi-icon">↓</div>
+          <div class="kpi-body">
+            <div class="kpi-label">52W Low</div>
+            <div id="kpi-52l" class="kpi-value">—</div>
           </div>
-          <div class="range-group" id="range-group">
-            <button class="range-btn" data-days="7">1W</button>
-            <button class="range-btn active" data-days="30">1M</button>
-            <button class="range-btn" data-days="90">3M</button>
-            <button class="range-btn" data-days="365">1Y</button>
+        </div>
+        <div class="kpi-card kpi-blue">
+          <div class="kpi-icon">≈</div>
+          <div class="kpi-body">
+            <div class="kpi-label">Avg Close (1Y)</div>
+            <div id="kpi-avg" class="kpi-value">—</div>
+          </div>
+        </div>
+        <div class="kpi-card kpi-amber">
+          <div class="kpi-icon">σ</div>
+          <div class="kpi-body">
+            <div class="kpi-label">Volatility (Ann.)</div>
+            <div id="kpi-vol" class="kpi-value">—</div>
+          </div>
+        </div>
+        <div class="kpi-card kpi-purple">
+          <div class="kpi-icon">AI</div>
+          <div class="kpi-body">
+            <div class="kpi-label">AI Forecast</div>
+            <div id="kpi-pred" class="kpi-value">—</div>
+            <div id="kpi-pred-delta" class="kpi-delta">Next trading day</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart section -->
+      <div class="chart-section">
+        <div class="chart-toolbar">
+          <div class="chart-tabs" id="chart-tabs">
+            <button class="ctab active" data-tab="price">Price Chart</button>
+            <button class="ctab" data-tab="compare">Compare</button>
+            <button class="ctab" data-tab="forecast">AI Forecast</button>
+            <button class="ctab" data-tab="heatmap">Correlation</button>
+          </div>
+          <div class="range-tabs" id="range-tabs">
+            <button class="rtab" data-days="7">1W</button>
+            <button class="rtab active" data-days="30">1M</button>
+            <button class="rtab" data-days="90">3M</button>
+            <button class="rtab" data-days="365">1Y</button>
           </div>
         </div>
 
         <!-- Price panel -->
         <div id="panel-price" class="chart-panel">
-          <div class="chart-wrapper chart-wrapper-main">
-            <div class="chart-header">
-              <span class="chart-title" id="chart-title-price">Price & Moving Averages</span>
-              <div class="chart-legend" id="price-legend"></div>
-            </div>
+          <div class="chart-legend" id="price-legend"></div>
+          <div class="price-chart-wrap">
             <canvas id="price-chart"></canvas>
           </div>
-          <div class="chart-wrapper chart-wrapper-volume">
-            <div class="chart-header">
-              <span class="chart-title">Volume</span>
-            </div>
+          <div class="vol-chart-wrap">
             <canvas id="volume-chart"></canvas>
           </div>
         </div>
 
         <!-- Compare panel -->
         <div id="panel-compare" class="chart-panel hidden">
-          <div class="compare-controls">
-            <label>Compare with:</label>
-            <select id="compare-select"></select>
-            <button id="compare-btn" class="btn-primary">Compare</button>
-            <label class="toggle-label">
-              <input type="checkbox" id="normalize-toggle" />
-              <span>Normalised (%)</span>
+          <div class="compare-bar">
+            <label class="compare-label">Compare with</label>
+            <select id="compare-select" class="compare-select"></select>
+            <button id="compare-btn" class="btn-primary">Apply</button>
+            <label class="norm-toggle">
+              <input type="checkbox" id="norm-toggle" />
+              Normalised %
             </label>
-            <div id="correlation-badge" class="correlation-badge hidden">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-              <span id="correlation-value">—</span>
-            </div>
+            <span id="corr-badge" class="corr-badge hidden"></span>
           </div>
-          <div class="chart-wrapper chart-wrapper-full">
+          <div class="compare-chart-wrap">
             <canvas id="compare-chart"></canvas>
           </div>
         </div>
 
-        <!-- Prediction panel -->
-        <div id="panel-prediction" class="chart-panel hidden">
-          <div class="pred-stats" id="pred-stats"></div>
-          <div class="chart-wrapper chart-wrapper-full">
-            <canvas id="prediction-chart"></canvas>
+        <!-- Forecast panel -->
+        <div id="panel-forecast" class="chart-panel hidden">
+          <div class="forecast-meta" id="forecast-meta"></div>
+          <div class="forecast-chart-wrap">
+            <canvas id="forecast-chart"></canvas>
           </div>
-          <div id="pred-meta" class="pred-meta"></div>
+          <div class="forecast-footer" id="forecast-footer"></div>
         </div>
 
         <!-- Heatmap panel -->
         <div id="panel-heatmap" class="chart-panel hidden">
-          <div class="heatmap-container">
+          <div class="heatmap-wrap">
             <canvas id="heatmap-chart"></canvas>
           </div>
         </div>
 
-      </div><!-- /dashboard -->
-    </main>
-  </div>
+      </div><!-- /chart-section -->
+    </div><!-- /dashboard -->
+  </main>
+</div>
 
-  <script type="module" src="js/api.js"></script>
-  <script type="module" src="js/charts.js"></script>
-  <script type="module" src="js/components.js"></script>
-  <script type="module" src="js/app.js"></script>
+<script type="module" src="js/api.js"></script>
+<script type="module" src="js/charts.js"></script>
+<script type="module" src="js/components.js"></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

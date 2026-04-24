@@ -1,25 +1,25 @@
 import { Api } from "./api.js";
-import { renderPriceChart, renderCompareChart, renderPredictionChart, renderCorrelationHeatmap } from "./charts.js";
+import { renderPriceChart, renderCompareChart, renderForecastChart, renderCorrelationHeatmap } from "./charts.js";
 import {
   buildCompanyList, setActiveCompany, filterCompanyList,
-  buildMoversList, populateCompareSelect, updateSummaryCards,
-  updatePredStats, setMarketStatus,
+  buildMoversList, populateCompareSelect, updateDashboard,
+  updateForecastMeta, setMarketStatus,
 } from "./components.js";
 
 const State = {
-  companies: [],
-  selectedSymbol: null,
-  activeDays: 30,
-  activeTab: "price",
-  heatmapLoaded: false,
-  normalized: false,
-  lastCompareData: null,
+  companies:      [],
+  symbol:         null,
+  days:           30,
+  tab:            "price",
+  heatmapLoaded:  false,
+  normalized:     false,
+  compareCache:   null,
 };
 
 window.AppState = { selectSymbol };
 
-function show(id) { document.getElementById(id)?.classList.remove("hidden"); }
-function hide(id) { document.getElementById(id)?.classList.add("hidden"); }
+const show = id => document.getElementById(id)?.classList.remove("hidden");
+const hide = id => document.getElementById(id)?.classList.add("hidden");
 
 async function init() {
   setMarketStatus();
@@ -30,69 +30,75 @@ async function init() {
     State.companies = companies;
     buildCompanyList(companies, selectSymbol);
     buildMoversList(movers.gainers, movers.losers);
-    document.getElementById("last-updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    document.getElementById("last-updated").textContent =
+      `Updated ${new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`;
   } catch (err) {
     console.error("Init error:", err);
     document.getElementById("last-updated").textContent = "API unavailable";
   }
 
-  hide("loading-overlay");
-  show("welcome-state");
+  hide("loading-screen");
+  show("welcome-screen");
 
+  // Search
   document.getElementById("search-input")
     .addEventListener("input", e => filterCompanyList(e.target.value));
 
-  document.querySelectorAll(".range-btn").forEach(btn => {
+  // Tab buttons
+  document.querySelectorAll(".ctab").forEach(btn => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".range-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".ctab").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      State.activeDays = Number(btn.dataset.days);
-      if (State.selectedSymbol && State.activeTab === "price") loadPriceChart();
-      if (State.selectedSymbol && State.activeTab === "compare") triggerCompare();
+      State.tab = btn.dataset.tab;
+      switchTab(btn.dataset.tab);
     });
   });
 
-  document.querySelectorAll(".tab-btn").forEach(btn => {
+  // Range buttons
+  document.querySelectorAll(".rtab").forEach(btn => {
     btn.addEventListener("click", () => {
-      document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".rtab").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      State.activeTab = btn.dataset.tab;
-      switchPanel(btn.dataset.tab);
+      State.days = Number(btn.dataset.days);
+      if (!State.symbol) return;
+      if (State.tab === "price")   loadPriceChart();
+      if (State.tab === "compare") triggerCompare();
     });
   });
 
+  // Compare
   document.getElementById("compare-btn").addEventListener("click", triggerCompare);
-
-  document.getElementById("normalize-toggle").addEventListener("change", e => {
+  document.getElementById("norm-toggle").addEventListener("change", e => {
     State.normalized = e.target.checked;
-    if (State.lastCompareData) {
-      const { d } = State.lastCompareData;
+    if (State.compareCache) {
+      const d = State.compareCache;
       renderCompareChart(d.symbol1, d.series1, d.symbol2, d.series2, State.normalized);
     }
   });
 }
 
 async function selectSymbol(symbol) {
-  State.selectedSymbol = symbol;
+  State.symbol       = symbol;
   State.heatmapLoaded = false;
-  State.lastCompareData = null;
+  State.compareCache  = null;
   setActiveCompany(symbol);
 
-  hide("welcome-state");
+  hide("welcome-screen");
   show("dashboard");
 
-  document.getElementById("stock-sector").textContent =
-    State.companies.find(c => c.symbol === symbol)?.sector ?? "";
+  // Update sector tag from local companies list
+  const sector = State.companies.find(c => c.symbol === symbol)?.sector ?? "";
+  const sectorEl = document.getElementById("stock-sector-tag");
+  if (sectorEl) sectorEl.textContent = sector;
 
   populateCompareSelect(State.companies, symbol);
-
   await Promise.all([loadSummary(), loadPriceChart()]);
 }
 
 async function loadSummary() {
   try {
-    const summary = await Api.getSummary(State.selectedSymbol);
-    updateSummaryCards(summary);
+    const s = await Api.getSummary(State.symbol);
+    updateDashboard(s);
   } catch (err) {
     console.error("Summary error:", err);
   }
@@ -100,9 +106,9 @@ async function loadSummary() {
 
 async function loadPriceChart() {
   try {
-    const data = await Api.getStockData(State.selectedSymbol, State.activeDays);
+    const data = await Api.getStockData(State.symbol, State.days);
     if (!data || data.length === 0) {
-      console.warn("No price data returned");
+      console.warn("No price data for", State.symbol, State.days, "days");
       return;
     }
     renderPriceChart(data);
@@ -111,33 +117,35 @@ async function loadPriceChart() {
   }
 }
 
-function switchPanel(tab) {
-  ["price", "compare", "prediction", "heatmap"].forEach(t => {
+function switchTab(tab) {
+  ["price", "compare", "forecast", "heatmap"].forEach(t => {
     const el = document.getElementById(`panel-${t}`);
     if (el) el.classList.toggle("hidden", t !== tab);
   });
 
-  const rangeGroup = document.getElementById("range-group");
+  const rangeGroup = document.getElementById("range-tabs");
   rangeGroup.style.visibility = ["price", "compare"].includes(tab) ? "visible" : "hidden";
 
-  if (tab === "prediction") loadPredictionChart();
+  if (tab === "forecast") loadForecastChart();
   if (tab === "heatmap" && !State.heatmapLoaded) loadHeatmap();
 }
 
-async function loadPredictionChart() {
-  if (!State.selectedSymbol) return;
+async function loadForecastChart() {
+  if (!State.symbol) return;
+  const meta  = document.getElementById("forecast-meta");
+  const foot  = document.getElementById("forecast-footer");
+  if (meta)  meta.innerHTML  = '<span style="color:#94a3b8;font-size:12px">Training model…</span>';
+  if (foot)  foot.textContent = "";
   try {
     const [hist, pred] = await Promise.all([
-      Api.getStockData(State.selectedSymbol, 90),
-      Api.getPrediction(State.selectedSymbol),
+      Api.getStockData(State.symbol, 365),
+      Api.getPrediction(State.symbol),
     ]);
-    renderPredictionChart(hist, pred.predictions);
-    updatePredStats(pred);
-    document.getElementById("pred-meta").textContent =
-      `Training window: 1 year  |  Splits: 5-fold TimeSeriesSplit`;
+    renderForecastChart(hist, pred.predictions);
+    updateForecastMeta(pred);
   } catch (err) {
-    console.error("Prediction error:", err);
-    document.getElementById("pred-meta").textContent = "Prediction unavailable — needs more historical data";
+    if (meta) meta.innerHTML = '<span style="color:#dc2626;font-size:12px">Prediction unavailable — need more historical data (minimum 20 days)</span>';
+    console.error("Forecast error:", err);
   }
 }
 
@@ -152,24 +160,20 @@ async function loadHeatmap() {
 }
 
 async function triggerCompare() {
-  const compareSymbol = document.getElementById("compare-select").value;
-  if (!State.selectedSymbol || !compareSymbol) return;
-
+  const sym2 = document.getElementById("compare-select").value;
+  if (!State.symbol || !sym2) return;
   try {
-    const d = await Api.compare(State.selectedSymbol, compareSymbol, State.activeDays);
-    State.lastCompareData = { d };
+    const d = await Api.compare(State.symbol, sym2, State.days);
+    State.compareCache = d;
     renderCompareChart(d.symbol1, d.series1, d.symbol2, d.series2, State.normalized);
 
-    const badge = document.getElementById("correlation-badge");
-    const valEl = document.getElementById("correlation-value");
-    if (d.correlation != null) {
+    const badge = document.getElementById("corr-badge");
+    if (badge && d.correlation != null) {
       const abs = Math.abs(d.correlation);
       const strength = abs > 0.75 ? "Strong" : abs > 0.4 ? "Moderate" : "Weak";
       const dir = d.correlation >= 0 ? "positive" : "negative";
-      valEl.textContent = `${d.correlation.toFixed(3)} — ${strength} ${dir} correlation`;
+      badge.textContent  = `r = ${d.correlation.toFixed(3)} · ${strength} ${dir}`;
       badge.classList.remove("hidden");
-    } else {
-      badge.classList.add("hidden");
     }
   } catch (err) {
     console.error("Compare error:", err);
