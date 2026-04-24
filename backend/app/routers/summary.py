@@ -55,6 +55,7 @@ async def get_summary(symbol: str, db: AsyncSession = Depends(get_db)):
     data = {
         "symbol": company.symbol,
         "name": company.name,
+        "sector": company.sector,
         "week52_high": latest_metric.week52_high if latest_metric else None,
         "week52_low": latest_metric.week52_low if latest_metric else None,
         "avg_close": float(avg_close) if avg_close else None,

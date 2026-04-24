@@ -28,6 +28,7 @@ class SummaryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     symbol: str
     name: str
+    sector: Optional[str]
     week52_high: Optional[float]
     week52_low: Optional[float]
     avg_close: Optional[float]
