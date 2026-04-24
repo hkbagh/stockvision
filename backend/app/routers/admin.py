@@ -12,12 +12,13 @@ router = APIRouter()
 
 
 async def _do_reseed():
-    from ..services import data_fetcher, data_processor
+    from ..services import data_fetcher, data_processor, ml_predictor
     try:
         async with AsyncSessionLocal() as session:
             raw = await data_fetcher.fetch_all_symbols(period="1y")
             await data_processor.process_all(session, raw)
-            logger.info("Admin reseed complete")
+            await ml_predictor.retrain_all(session)
+            logger.info("Admin reseed + ML retrain complete")
     except Exception as e:
         logger.error(f"Admin reseed failed: {e}")
 

@@ -4,42 +4,31 @@ from datetime import date, timedelta
 from typing import Dict, Optional
 import requests
 import pandas as pd
-import yfinance as yf
 from ..config import settings
 from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-_SESSION = requests.Session()
-_SESSION.headers.update({
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
-})
-
-
-# ── Alpha Vantage fallback ─────────────────────────────────────────────────
 _AV_BASE = "https://www.alphavantage.co/query"
 _PERIOD_DAYS = {"5d": 5, "1mo": 30, "3mo": 90, "1y": 365, "2y": 730}
-_av_last_call: float = 0.0  # enforce 5 req/min free-tier rate limit
+_av_last_call: float = 0.0
 
 
 def _av_symbol(symbol: str) -> str:
     return symbol.replace(".NS", ".BSE")
 
 
-def _fetch_alpha_vantage(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
+def _fetch_symbol(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
     global _av_last_call
     if not settings.ALPHA_VANTAGE_KEY:
+        logger.error(f"ALPHA_VANTAGE_KEY not set — cannot fetch {symbol}")
         return None
-    # Respect free-tier 5 req/min limit (12 s between calls)
+
+    # Enforce free-tier 5 req/min (12 s between calls)
     elapsed = time.time() - _av_last_call
     if elapsed < 12:
         time.sleep(12 - elapsed)
+
     av_sym = _av_symbol(symbol)
     try:
         outputsize = "full" if period in ("1y", "2y") else "compact"
@@ -48,17 +37,18 @@ def _fetch_alpha_vantage(symbol: str, period: str = "1y") -> Optional[pd.DataFra
             "symbol": av_sym,
             "outputsize": outputsize,
             "apikey": settings.ALPHA_VANTAGE_KEY,
-        }, timeout=20)
+        }, timeout=30)
         _av_last_call = time.time()
         data = resp.json()
         ts = data.get("Time Series (Daily)")
         if not ts:
-            msg = data.get("Note") or data.get("Information") or data.get("Error Message") or "unknown"
+            msg = (data.get("Note") or data.get("Information")
+                   or data.get("Error Message") or str(data))
             logger.warning(f"Alpha Vantage: no data for {av_sym} — {msg}")
             return None
 
-        rows = []
         cutoff = date.today() - timedelta(days=_PERIOD_DAYS.get(period, 365))
+        rows = []
         for day, vals in ts.items():
             d = date.fromisoformat(day)
             if d < cutoff:
@@ -73,43 +63,21 @@ def _fetch_alpha_vantage(symbol: str, period: str = "1y") -> Optional[pd.DataFra
             })
 
         if not rows:
+            logger.warning(f"Alpha Vantage: {av_sym} returned 0 rows in period")
             return None
+
         df = pd.DataFrame(rows).sort_values("date").set_index("date")
         df.index.name = "date"
-        logger.info(f"Alpha Vantage: {symbol} fetched {len(df)} rows")
+        logger.info(f"Alpha Vantage: {symbol} ({av_sym}) fetched {len(df)} rows")
         return df
     except Exception as e:
         logger.warning(f"Alpha Vantage fetch failed for {symbol}: {e}")
         return None
 
 
-# ── yfinance primary ───────────────────────────────────────────────────────
-def _download_symbol(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
-    for attempt in range(3):
-        try:
-            ticker = yf.Ticker(symbol, session=_SESSION)
-            df = ticker.history(period=period, auto_adjust=True)
-            if df.empty:
-                logger.warning(f"{symbol}: empty response on attempt {attempt + 1}")
-                time.sleep(2 ** attempt)
-                continue
-            df.index = pd.to_datetime(df.index).tz_localize(None)
-            df.index.name = "date"
-            df.columns = [c.lower() for c in df.columns]
-            return df
-        except Exception as e:
-            logger.warning(f"{symbol}: fetch error attempt {attempt + 1}: {e}")
-            time.sleep(2 ** attempt)
-    return None
-
-
 async def fetch_symbol(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
     loop = asyncio.get_event_loop()
-    df = await loop.run_in_executor(None, _download_symbol, symbol, period)
-    if df is None or df.empty:
-        logger.info(f"{symbol}: yfinance failed, trying Alpha Vantage fallback")
-        df = await loop.run_in_executor(None, _fetch_alpha_vantage, symbol, period)
-    return df
+    return await loop.run_in_executor(None, _fetch_symbol, symbol, period)
 
 
 async def fetch_all_symbols(period: str = "1y") -> Dict[str, pd.DataFrame]:
@@ -118,10 +86,9 @@ async def fetch_all_symbols(period: str = "1y") -> Dict[str, pd.DataFrame]:
         df = await fetch_symbol(symbol, period)
         if df is not None and not df.empty:
             results[symbol] = df
-            logger.info(f"{symbol}: fetched {len(df)} rows")
+            logger.info(f"{symbol}: {len(df)} rows ready")
         else:
             logger.error(f"{symbol}: failed to fetch data")
-        await asyncio.sleep(0.3)
     logger.info(f"Fetch complete: {len(results)}/{len(settings.SYMBOLS)} symbols")
     return results
 
