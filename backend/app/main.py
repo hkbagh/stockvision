@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from .database import create_tables, AsyncSessionLocal
-from .routers import companies, stock_data, summary, compare, gainers, correlation, prediction
+from .routers import companies, stock_data, summary, compare, gainers, correlation, prediction, admin
 from .tasks.scheduler import setup_scheduler
 from .utils.logger import get_logger
 
@@ -71,6 +71,7 @@ app.include_router(compare.router, prefix="/compare", tags=["Compare"])
 app.include_router(gainers.router, prefix="/top-gainers", tags=["Gainers & Losers"])
 app.include_router(correlation.router, prefix="/correlation", tags=["Correlation"])
 app.include_router(prediction.router, prefix="/predict", tags=["ML Prediction"])
+app.include_router(admin.router, prefix="/admin", tags=["Admin"])
 
 
 @app.get("/health", tags=["Health"])
