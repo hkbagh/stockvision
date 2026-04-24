@@ -38,12 +38,13 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="NSE/BSE Financial Data Platform",
+    title="StockVision API",
     description=(
         "Real-time NSE/BSE Indian stock market data with analytics, "
         "comparison, correlation analysis, and ML-based price prediction."
     ),
     version="1.0.0",
+    openapi_version="3.0.3",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,

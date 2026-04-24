@@ -3,25 +3,35 @@ const CHART_DEFAULTS = {
   maintainAspectRatio: false,
   interaction: { mode: "index", intersect: false },
   plugins: {
-    legend: { labels: { color: "#8b949e", boxWidth: 12, font: { size: 12 } } },
+    legend: {
+      labels: {
+        color: "#3d4a5c", boxWidth: 12, font: { size: 12, family: "Inter, sans-serif" },
+        usePointStyle: true, pointStyleWidth: 8,
+      },
+    },
     tooltip: {
-      backgroundColor: "#161b22",
-      borderColor: "#30363d",
+      backgroundColor: "#ffffff",
+      borderColor: "#e2e6ed",
       borderWidth: 1,
-      titleColor: "#e6edf3",
-      bodyColor: "#8b949e",
+      titleColor: "#0f1929",
+      bodyColor: "#3d4a5c",
+      padding: 12,
+      cornerRadius: 8,
+      boxShadow: "0 4px 12px rgba(0,0,0,.08)",
     },
   },
   scales: {
     x: {
       type: "time",
       time: { unit: "day", tooltipFormat: "dd MMM yyyy" },
-      ticks: { color: "#8b949e", maxTicksLimit: 8 },
-      grid: { color: "#21262d" },
+      ticks: { color: "#7b8799", maxTicksLimit: 8, font: { size: 11 } },
+      grid: { color: "#f0f2f6" },
+      border: { color: "#e2e6ed" },
     },
     y: {
-      ticks: { color: "#8b949e" },
-      grid: { color: "#21262d" },
+      ticks: { color: "#7b8799", font: { size: 11 } },
+      grid: { color: "#f0f2f6" },
+      border: { color: "#e2e6ed" },
     },
   },
 };
@@ -45,32 +55,34 @@ export function renderPriceChart(data) {
         {
           label: "Close",
           data: data.map(d => d.close),
-          borderColor: "#58a6ff",
-          backgroundColor: "rgba(88,166,255,.08)",
+          borderColor: "#1a73e8",
+          backgroundColor: "rgba(26,115,232,.07)",
           borderWidth: 2,
           pointRadius: 0,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: "#1a73e8",
           fill: true,
-          tension: 0.1,
+          tension: 0.3,
         },
         {
-          label: "MA7",
+          label: "MA 7",
           data: data.map(d => d.ma_7),
-          borderColor: "#d29922",
+          borderColor: "#f59e0b",
           borderWidth: 1.5,
-          borderDash: [4, 4],
+          borderDash: [5, 4],
           pointRadius: 0,
           fill: false,
-          tension: 0.1,
+          tension: 0.3,
         },
         {
-          label: "MA30",
+          label: "MA 30",
           data: data.map(d => d.ma_30),
-          borderColor: "#bc8cff",
+          borderColor: "#7c3aed",
           borderWidth: 1.5,
-          borderDash: [6, 3],
+          borderDash: [7, 3],
           pointRadius: 0,
           fill: false,
-          tension: 0.1,
+          tension: 0.3,
         },
       ],
     },
@@ -108,23 +120,23 @@ export function renderCompareChart(sym1, data1, sym2, data2) {
         {
           label: sym1,
           data: allLabels.map(d => map1[d] ?? null),
-          borderColor: "#58a6ff",
-          backgroundColor: "rgba(88,166,255,.06)",
+          borderColor: "#1a73e8",
+          backgroundColor: "rgba(26,115,232,.06)",
           borderWidth: 2,
           pointRadius: 0,
           fill: true,
-          tension: 0.1,
+          tension: 0.3,
           yAxisID: "y",
         },
         {
           label: sym2,
           data: allLabels.map(d => map2[d] ?? null),
-          borderColor: "#3fb950",
-          backgroundColor: "rgba(63,185,80,.06)",
+          borderColor: "#00a86b",
+          backgroundColor: "rgba(0,168,107,.06)",
           borderWidth: 2,
           pointRadius: 0,
           fill: true,
-          tension: 0.1,
+          tension: 0.3,
           yAxisID: "y1",
         },
       ],
@@ -170,23 +182,25 @@ export function renderPredictionChart(histData, predictions) {
         {
           label: "Historical Close",
           data: histLabels.map((d, i) => ({ x: d, y: histClose[i] })),
-          borderColor: "#58a6ff",
-          backgroundColor: "rgba(88,166,255,.08)",
+          borderColor: "#1a73e8",
+          backgroundColor: "rgba(26,115,232,.07)",
           borderWidth: 2,
           pointRadius: 0,
           fill: true,
-          tension: 0.1,
+          tension: 0.3,
         },
         {
-          label: "ML Prediction",
+          label: "AI Forecast",
           data: predLabelsBridge.map((d, i) => ({ x: d, y: predWithBridge[i] })),
-          borderColor: "#f85149",
-          borderDash: [6, 3],
-          borderWidth: 2,
-          pointRadius: 4,
-          pointBackgroundColor: "#f85149",
+          borderColor: "#7c3aed",
+          borderDash: [6, 4],
+          borderWidth: 2.5,
+          pointRadius: 5,
+          pointBackgroundColor: "#7c3aed",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
           fill: false,
-          tension: 0.1,
+          tension: 0.3,
         },
       ],
     },
@@ -218,11 +232,11 @@ export function renderCorrelationHeatmap(symbols, matrix) {
   canvas.height = size;
   const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = "#161b22";
+  ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, size, size);
 
-  ctx.font = "10px -apple-system, sans-serif";
-  ctx.fillStyle = "#8b949e";
+  ctx.font = "10px Inter, -apple-system, sans-serif";
+  ctx.fillStyle = "#7b8799";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
 
@@ -246,20 +260,20 @@ export function renderCorrelationHeatmap(symbols, matrix) {
       const y = labelPad + i * cellSize;
 
       if (val === null || val === undefined) {
-        ctx.fillStyle = "#21262d";
+        ctx.fillStyle = "#f0f2f6";
       } else {
         const abs = Math.abs(val);
         if (val >= 0) {
-          ctx.fillStyle = `rgba(63,185,80,${0.1 + abs * 0.85})`;
+          ctx.fillStyle = `rgba(0,168,107,${0.08 + abs * 0.75})`;
         } else {
-          ctx.fillStyle = `rgba(248,81,73,${0.1 + abs * 0.85})`;
+          ctx.fillStyle = `rgba(229,57,53,${0.08 + abs * 0.75})`;
         }
       }
       ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
 
       if (val !== null && val !== undefined) {
-        ctx.fillStyle = Math.abs(val) > 0.6 ? "#fff" : "#8b949e";
-        ctx.font = "8px -apple-system, sans-serif";
+        ctx.fillStyle = Math.abs(val) > 0.65 ? "#fff" : "#3d4a5c";
+        ctx.font = "8px Inter, -apple-system, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(val.toFixed(2), x + cellSize / 2, y + cellSize / 2);

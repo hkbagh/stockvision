@@ -1,10 +1,16 @@
+function getInitials(symbol) {
+  return symbol.replace(".NS", "").slice(0, 2).toUpperCase();
+}
+
 export function buildCompanyList(companies, onSelect) {
   const ul = document.getElementById("company-list");
   ul.innerHTML = "";
-  companies.forEach(c => {
+  companies.forEach((c, i) => {
     const li = document.createElement("li");
     li.dataset.symbol = c.symbol;
+    li.style.animationDelay = `${i * 0.03}s`;
     li.innerHTML = `
+      <div class="company-avatar">${getInitials(c.symbol)}</div>
       <div>
         <div class="sym">${c.symbol.replace(".NS", "")}</div>
         <div class="name">${c.name}</div>
@@ -17,22 +23,25 @@ export function buildCompanyList(companies, onSelect) {
 
 export function setActiveCompany(symbol) {
   document.querySelectorAll("#company-list li").forEach(li => {
-    li.classList.toggle("active", li.dataset.symbol === symbol);
+    const active = li.dataset.symbol === symbol;
+    li.classList.toggle("active", active);
   });
+
+  const logoEl = document.getElementById("stock-logo");
+  if (logoEl) logoEl.textContent = getInitials(symbol);
 }
 
 export function filterCompanyList(query) {
   const q = query.toLowerCase();
   document.querySelectorAll("#company-list li").forEach(li => {
-    const sym = li.dataset.symbol?.toLowerCase() ?? "";
+    const sym  = li.dataset.symbol?.toLowerCase() ?? "";
     const name = li.querySelector(".name")?.textContent.toLowerCase() ?? "";
     li.style.display = sym.includes(q) || name.includes(q) ? "" : "none";
   });
 }
 
 export function buildMoversList(gainers, losers) {
-  const fmt = (v) => v != null ? `${v >= 0 ? "+" : ""}${(v * 100).toFixed(2)}%` : "—";
-  const color = (v) => v >= 0 ? "text-green" : "text-red";
+  const fmt = v => v != null ? `${v >= 0 ? "+" : ""}${(v * 100).toFixed(2)}%` : "—";
 
   const fill = (listId, items) => {
     const ul = document.getElementById(listId);
@@ -40,9 +49,10 @@ export function buildMoversList(gainers, losers) {
     items.forEach(item => {
       const li = document.createElement("li");
       const ret = item.daily_return;
+      const cls = ret >= 0 ? "up" : "down";
       li.innerHTML = `
         <span class="sym">${item.symbol.replace(".NS", "")}</span>
-        <span class="ret ${color(ret)}">${fmt(ret)}</span>
+        <span class="ret ${cls}">${fmt(ret)}</span>
       `;
       li.addEventListener("click", () => {
         if (window.AppState) window.AppState.selectSymbol(item.symbol);
@@ -51,8 +61,8 @@ export function buildMoversList(gainers, losers) {
     });
   };
 
-  fill("gainers-list", gainers);
-  fill("losers-list", losers);
+  fill("gainers-list", gainers.slice(0, 5));
+  fill("losers-list",  losers.slice(0, 5));
 }
 
 export function populateCompareSelect(companies, currentSymbol) {
@@ -67,23 +77,29 @@ export function populateCompareSelect(companies, currentSymbol) {
 }
 
 export function updateSummaryCards(summary) {
-  const fmt = v => v != null ? `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—";
+  const fmtINR = v => v != null
+    ? `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : "—";
   const fmtPct = v => v != null ? `${(v * 100).toFixed(2)}%` : "—";
 
-  document.getElementById("card-52h").textContent = fmt(summary.week52_high);
-  document.getElementById("card-52l").textContent = fmt(summary.week52_low);
-  document.getElementById("card-avg").textContent = fmt(summary.avg_close);
+  document.getElementById("card-52h").textContent = fmtINR(summary.week52_high);
+  document.getElementById("card-52l").textContent = fmtINR(summary.week52_low);
+  document.getElementById("card-avg").textContent = fmtINR(summary.avg_close);
   document.getElementById("card-vol").textContent = fmtPct(summary.volatility);
-  document.getElementById("card-pred").textContent = fmt(summary.predicted_close_tomorrow);
+  document.getElementById("card-pred").textContent = fmtINR(summary.predicted_close_tomorrow);
 
-  const retEl = document.getElementById("stock-return");
+  document.getElementById("stock-price").textContent = fmtINR(summary.latest_close);
+  document.getElementById("stock-name").textContent  = summary.name;
+
+  const sym = document.getElementById("stock-symbol");
+  sym.textContent = summary.symbol;
+
   const ret = summary.latest_daily_return;
-  retEl.textContent = ret != null ? `${ret >= 0 ? "▲" : "▼"} ${Math.abs(ret * 100).toFixed(2)}%` : "";
-  retEl.className = "stock-return " + (ret >= 0 ? "text-green" : "text-red");
-
-  document.getElementById("stock-price").textContent = fmt(summary.latest_close);
-  document.getElementById("stock-name").textContent = summary.name;
-  document.getElementById("stock-symbol").textContent = summary.symbol;
+  const retEl = document.getElementById("stock-return");
+  retEl.textContent = ret != null
+    ? `${ret >= 0 ? "▲" : "▼"} ${Math.abs(ret * 100).toFixed(2)}%`
+    : "—";
+  retEl.className = `stock-return ${ret >= 0 ? "up" : "down"}`;
 }
 
 export function setMarketStatus() {
@@ -95,10 +111,10 @@ export function setMarketStatus() {
   const weekday = day >= 1 && day <= 5;
   const el = document.getElementById("market-status");
   if (weekday && open) {
-    el.textContent = "Market Open";
+    el.innerHTML = `<span class="badge-dot"></span> Market Open`;
     el.className = "badge badge-open";
   } else {
-    el.textContent = "Market Closed";
+    el.innerHTML = `<span class="badge-dot"></span> Market Closed`;
     el.className = "badge badge-closed";
   }
 }
