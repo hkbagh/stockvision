@@ -1,6 +1,6 @@
 import asyncio
 import time
-from datetime import date, timedelta
+from datetime import date
 from typing import Dict, Optional
 import requests
 import pandas as pd
@@ -10,7 +10,6 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 _AV_BASE = "https://www.alphavantage.co/query"
-_PERIOD_DAYS = {"5d": 5, "1mo": 30, "3mo": 90, "1y": 365, "2y": 730}
 _av_last_call: float = 0.0
 
 
@@ -31,11 +30,10 @@ def _fetch_symbol(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
 
     av_sym = _av_symbol(symbol)
     try:
-        outputsize = "full" if period in ("1y", "2y") else "compact"
         resp = requests.get(_AV_BASE, params={
             "function": "TIME_SERIES_DAILY",
             "symbol": av_sym,
-            "outputsize": outputsize,
+            "outputsize": "compact",
             "apikey": settings.ALPHA_VANTAGE_KEY,
         }, timeout=30)
         _av_last_call = time.time()
@@ -47,14 +45,10 @@ def _fetch_symbol(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
             logger.warning(f"Alpha Vantage: no data for {av_sym} — {msg}")
             return None
 
-        cutoff = date.today() - timedelta(days=_PERIOD_DAYS.get(period, 365))
         rows = []
         for day, vals in ts.items():
-            d = date.fromisoformat(day)
-            if d < cutoff:
-                continue
             rows.append({
-                "date": pd.Timestamp(d),
+                "date": pd.Timestamp(date.fromisoformat(day)),
                 "open":   float(vals["1. open"]),
                 "high":   float(vals["2. high"]),
                 "low":    float(vals["3. low"]),
