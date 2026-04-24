@@ -33,7 +33,15 @@ const BASE = {
   scales: {
     x: {
       type: "time",
-      time: { tooltipFormat: "dd MMM yyyy" },
+      time: {
+        tooltipFormat: "dd MMM yyyy",
+        displayFormats: {
+          hour:  "HH:mm",
+          day:   "dd MMM",
+          week:  "dd MMM",
+          month: "MMM yyyy",
+        },
+      },
       ticks: { color: C.muted, maxTicksLimit: 8, font: { size: 10 } },
       grid: { color: "#f1f5f9" },
       border: { color: C.border },

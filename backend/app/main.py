@@ -12,20 +12,21 @@ logger = get_logger(__name__)
 
 async def _seed_background():
     from sqlalchemy import select, func
-    from .models.stock import Company
-    from .services import data_fetcher, data_processor
+    from .models.stock import StockPrice
+    from .services import data_fetcher, data_processor, ml_predictor
 
     try:
         async with AsyncSessionLocal() as session:
-            count_q = await session.execute(select(func.count()).select_from(Company))
-            count = count_q.scalar()
-            if count == 0:
-                logger.info("No data — starting background initial data load")
+            price_count_q = await session.execute(select(func.count()).select_from(StockPrice))
+            price_count = price_count_q.scalar()
+            if price_count < 200:
+                logger.info(f"Insufficient price data ({price_count} rows) — starting background data load")
                 raw = await data_fetcher.fetch_all_symbols(period="1y")
                 await data_processor.process_all(session, raw)
-                logger.info("Initial data load complete")
+                await ml_predictor.retrain_all(session)
+                logger.info("Initial data load + ML training complete")
             else:
-                logger.info(f"Database already has {count} companies, skipping seed")
+                logger.info(f"Database has {price_count} price rows, skipping seed")
     except Exception as e:
         logger.error(f"Background seed failed: {e}")
 
