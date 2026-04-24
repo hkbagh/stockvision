@@ -1,8 +1,7 @@
 import os
-import math
 import asyncio
 from datetime import date, timedelta
-from typing import List, Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict
 import numpy as np
 import pandas as pd
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,7 +102,6 @@ async def train_and_predict(session: AsyncSession, symbol: str) -> Optional[Dict
     logger.info(f"{symbol}: MAE={mae:.2f}, confidence={confidence}")
 
     last_row = df.iloc[-1]
-    last_close = last_row["close"]
     predictions = []
     current_date = date.today()
 

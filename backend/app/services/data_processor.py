@@ -1,10 +1,9 @@
 import math
-from datetime import date
 from typing import Dict, Optional
 import pandas as pd
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from ..models.stock import Company, StockPrice, DailyMetric
 from ..config import settings
 from ..utils.logger import get_logger
