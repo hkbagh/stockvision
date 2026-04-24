@@ -1,7 +1,11 @@
 .env
-data/stocks.db
-data/test_stocks.db
-ml/models/*.pkl
+# Database files (anywhere in tree)
+**/*.db
+**/*.db-shm
+**/*.db-wal
+# ML model pickles
+**/*.pkl
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -10,6 +14,11 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-.DS_Store
+# TLS certs
 nginx/ssl/fullchain.pem
 nginx/ssl/privkey.pem
+# OS
+.DS_Store
+Thumbs.db
+# Claude internal
+.claude/
