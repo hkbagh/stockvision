@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import date
 from ..database import get_db
 from ..models.stock import Company, StockPrice, DailyMetric
 from ..schemas.stock import TopGainersOut

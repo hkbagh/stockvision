@@ -1,7 +1,7 @@
 import asyncio
 import time
-from datetime import datetime, date
 from typing import Dict, Optional
+import requests
 import pandas as pd
 import yfinance as yf
 from ..config import settings
@@ -9,11 +9,22 @@ from ..utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+_SESSION = requests.Session()
+_SESSION.headers.update({
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+})
+
 
 def _download_symbol(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
     for attempt in range(3):
         try:
-            ticker = yf.Ticker(symbol)
+            ticker = yf.Ticker(symbol, session=_SESSION)
             df = ticker.history(period=period, auto_adjust=True)
             if df.empty:
                 logger.warning(f"{symbol}: empty response on attempt {attempt + 1}")

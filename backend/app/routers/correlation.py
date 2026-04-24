@@ -22,7 +22,7 @@ async def get_correlation(db: AsyncSession = Depends(get_db)):
     since = date.today() - timedelta(days=365)
 
     companies_q = await db.execute(
-        select(Company).where(Company.is_active == True).order_by(Company.symbol)
+        select(Company).where(Company.is_active.is_(True)).order_by(Company.symbol)
     )
     companies = companies_q.scalars().all()
 
