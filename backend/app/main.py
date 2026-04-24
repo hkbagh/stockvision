@@ -19,7 +19,7 @@ async def _seed_background():
         async with AsyncSessionLocal() as session:
             price_count_q = await session.execute(select(func.count()).select_from(StockPrice))
             price_count = price_count_q.scalar()
-            if price_count < 200:
+            if price_count < 1500:
                 logger.info(f"Insufficient price data ({price_count} rows) — starting background data load")
                 raw = await data_fetcher.fetch_all_symbols(period="1y")
                 await data_processor.process_all(session, raw)

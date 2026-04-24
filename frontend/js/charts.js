@@ -34,9 +34,9 @@ const BASE = {
     x: {
       type: "time",
       time: {
+        unit: "day",
         tooltipFormat: "dd MMM yyyy",
         displayFormats: {
-          hour:  "HH:mm",
           day:   "dd MMM",
           week:  "dd MMM",
           month: "MMM yyyy",
