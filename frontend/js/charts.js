@@ -79,83 +79,115 @@ export function renderPriceChart(data) {
 
   const isUp = d => (d.close ?? 0) >= (d.open ?? d.close ?? 0);
 
-  // ── Candlestick chart ──────────────────────────────
-  const candleData = data.map(d => ({
-    x: d.date,
-    o: d.open  ?? d.close,
-    h: d.high  ?? d.close,
-    l: d.low   ?? d.close,
-    c: d.close,
-  }));
-  const ma7Data  = data.map(d => ({ x: d.date, y: d.ma_7  }));
-  const ma30Data = data.map(d => ({ x: d.date, y: d.ma_30 }));
+  // ── Custom canvas plugin: draws real candlestick bodies + wicks ──
+  const candlePlugin = {
+    id: "candles",
+    afterDatasetsDraw(chart) {
+      const { ctx, scales: { x, y } } = chart;
+      if (!x || !y || !data.length) return;
+
+      let bw = 6;
+      if (data.length > 1) {
+        const dx = Math.abs(
+          x.getPixelForValue(data[1].date) - x.getPixelForValue(data[0].date)
+        );
+        bw = Math.max(2, Math.min(16, dx * 0.55));
+      }
+
+      data.forEach(d => {
+        const px = x.getPixelForValue(d.date);
+        const o  = d.open  ?? d.close;
+        const h  = d.high  ?? d.close;
+        const l  = d.low   ?? d.close;
+        const c  = d.close;
+        const up    = c >= o;
+        const col   = up ? "#059669" : "#dc2626";
+        const fill  = up ? "rgba(5,150,105,0.82)" : "rgba(220,38,38,0.82)";
+
+        const hPx = y.getPixelForValue(h);
+        const lPx = y.getPixelForValue(l);
+        const oPx = y.getPixelForValue(o);
+        const cPx = y.getPixelForValue(c);
+
+        ctx.save();
+        ctx.strokeStyle = col;
+        ctx.lineWidth   = 1;
+
+        // High-low wick
+        ctx.beginPath();
+        ctx.moveTo(px, hPx);
+        ctx.lineTo(px, lPx);
+        ctx.stroke();
+
+        // Open-close body
+        const top = Math.min(oPx, cPx);
+        const bh  = Math.max(Math.abs(oPx - cPx), 1.5);
+        ctx.fillStyle = fill;
+        ctx.fillRect(  px - bw / 2, top, bw, bh);
+        ctx.strokeRect(px - bw / 2, top, bw, bh);
+
+        ctx.restore();
+      });
+    },
+  };
+
+  // ── Invisible datasets to anchor Y-axis to full OHLC range ──
+  const hidden = (pts) => ({
+    data: pts, borderWidth: 0, pointRadius: 0, fill: false,
+    borderColor: "transparent", backgroundColor: "transparent",
+  });
 
   _price = new Chart(priceEl.getContext("2d"), {
-    type: "candlestick",
+    type: "line",
     data: {
       datasets: [
+        { label: "_h", ...hidden(data.map(d => ({ x: d.date, y: d.high  ?? d.close }))) },
+        { label: "_l", ...hidden(data.map(d => ({ x: d.date, y: d.low   ?? d.close }))) },
+        { label: "_c", ...hidden(data.map(d => ({ x: d.date, y: d.close }))) },
         {
-          label: "Price",
-          data: candleData,
-          color: { up: C.green, down: C.red, unchanged: C.muted },
-          borderColor: { up: C.green, down: C.red, unchanged: C.muted },
-          backgroundColors: { up: "rgba(5,150,105,0.7)", down: "rgba(220,38,38,0.7)", unchanged: C.muted },
-        },
-        {
-          type: "line",
           label: "MA 7",
-          data: ma7Data,
-          borderColor: C.teal,
-          borderWidth: 1.5,
-          borderDash: [4, 3],
-          pointRadius: 0,
-          fill: false,
-          tension: 0.3,
-          order: 1,
+          data: data.map(d => ({ x: d.date, y: d.ma_7 })),
+          borderColor: C.teal, borderWidth: 1.5, borderDash: [4, 3],
+          pointRadius: 0, fill: false, tension: 0.3,
         },
         {
-          type: "line",
           label: "MA 30",
-          data: ma30Data,
-          borderColor: C.amber,
-          borderWidth: 1.5,
-          borderDash: [7, 3],
-          pointRadius: 0,
-          fill: false,
-          tension: 0.3,
-          order: 0,
+          data: data.map(d => ({ x: d.date, y: d.ma_30 })),
+          borderColor: C.amber, borderWidth: 1.5, borderDash: [7, 3],
+          pointRadius: 0, fill: false, tension: 0.3,
         },
       ],
     },
+    plugins: [candlePlugin],
     options: {
       ...BASE,
       plugins: {
         ...BASE.plugins,
         tooltip: {
           ...BASE.plugins.tooltip,
+          filter: item => !item.dataset.label.startsWith("_"),
           callbacks: {
             title: items => items[0]?.label ?? "",
-            label: ctx => {
-              const i = ctx.dataIndex;
-              const d = data[i];
-              if (ctx.dataset.label === "Price") {
-                const ret = d.daily_return;
-                const retStr = ret != null
-                  ? `  ${ret >= 0 ? "▲" : "▼"} ${Math.abs(ret * 100).toFixed(2)}%`
-                  : "";
-                return [
-                  ` O: ${fINR(d.open)}   H: ${fINR(d.high)}`,
-                  ` C: ${fINR(d.close)}  L: ${fINR(d.low)}${retStr}`,
-                  ` Vol: ${fVol(d.volume)}`,
-                ];
-              }
-              return ` ${ctx.dataset.label}: ${fINR(ctx.parsed.y)}`;
+            beforeBody: items => {
+              const d = data[items[0]?.dataIndex];
+              if (!d) return [];
+              const ret = d.daily_return;
+              const r = ret != null
+                ? `  ${ret >= 0 ? "▲" : "▼"} ${Math.abs(ret * 100).toFixed(2)}%`
+                : "";
+              return [
+                ` O ${fINR(d.open)}   H ${fINR(d.high)}`,
+                ` C ${fINR(d.close)}  L ${fINR(d.low)}${r}`,
+                ` Vol ${fVol(d.volume)}`,
+                "─────────────────────",
+              ];
             },
+            label: ctx => ` ${ctx.dataset.label}: ${fINR(ctx.parsed.y)}`,
           },
         },
       },
       scales: {
-        x: { ...BASE.scales.x, grid: { color: "#f1f5f9" } },
+        x: { ...BASE.scales.x },
         y: {
           ...BASE.scales.y,
           ticks: {
@@ -168,19 +200,14 @@ export function renderPriceChart(data) {
   });
 
   // ── Volume chart ───────────────────────────────────
-  const volColors = data.map(d => isUp(d) ? "rgba(5,150,105,0.55)" : "rgba(220,38,38,0.55)");
-
   _vol = new Chart(volEl.getContext("2d"), {
     type: "bar",
     data: {
       datasets: [{
         label: "Volume",
         data: data.map(d => ({ x: d.date, y: d.volume })),
-        backgroundColor: volColors,
-        borderWidth: 0,
-        borderRadius: 1,
-        barPercentage: 0.8,
-        categoryPercentage: 0.9,
+        backgroundColor: data.map(d => isUp(d) ? "rgba(5,150,105,0.55)" : "rgba(220,38,38,0.55)"),
+        borderWidth: 0, borderRadius: 1, barPercentage: 0.8, categoryPercentage: 0.9,
       }],
     },
     options: {
@@ -207,10 +234,10 @@ export function renderPriceChart(data) {
   const leg = document.getElementById("price-legend");
   if (leg) {
     leg.innerHTML = [
-      { label: "Up day",  color: C.green, type: "box" },
-      { label: "Down day", color: C.red,  type: "box" },
-      { label: "MA 7",    color: C.teal,  type: "dash" },
-      { label: "MA 30",   color: C.amber, type: "dash" },
+      { label: "Up day",   color: C.green, type: "box" },
+      { label: "Down day", color: C.red,   type: "box" },
+      { label: "MA 7",     color: C.teal,  type: "dash" },
+      { label: "MA 30",    color: C.amber, type: "dash" },
     ].map(({ label, color, type }) => `
       <span class="legend-item">
         <span class="${type === "box" ? "legend-box" : "legend-dash"}" style="background:${color}"></span>
