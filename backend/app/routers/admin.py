@@ -60,7 +60,7 @@ async def test_av():
             params={
                 "function": "TIME_SERIES_DAILY",
                 "symbol": "TCS.BSE",
-                "outputsize": "full",
+                "outputsize": "compact",
                 "apikey": settings.ALPHA_VANTAGE_KEY,
             },
             timeout=30,

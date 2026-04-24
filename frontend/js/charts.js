@@ -80,6 +80,8 @@ export function renderPriceChart(data) {
   const isUp = d => (d.close ?? 0) >= (d.open ?? d.close ?? 0);
 
   // ── Custom canvas plugin: draws real candlestick bodies + wicks ──
+  const ts = s => new Date(s).getTime();   // date string → ms timestamp
+
   const candlePlugin = {
     id: "candles",
     afterDatasetsDraw(chart) {
@@ -89,13 +91,13 @@ export function renderPriceChart(data) {
       let bw = 6;
       if (data.length > 1) {
         const dx = Math.abs(
-          x.getPixelForValue(data[1].date) - x.getPixelForValue(data[0].date)
+          x.getPixelForValue(ts(data[1].date)) - x.getPixelForValue(ts(data[0].date))
         );
         bw = Math.max(2, Math.min(16, dx * 0.55));
       }
 
       data.forEach(d => {
-        const px = x.getPixelForValue(d.date);
+        const px = x.getPixelForValue(ts(d.date));
         const o  = d.open  ?? d.close;
         const h  = d.high  ?? d.close;
         const l  = d.low   ?? d.close;
