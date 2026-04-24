@@ -73,59 +73,57 @@ export function renderPriceChart(data) {
   dc(_price); dc(_vol);
   if (!data || data.length === 0) return;
 
-  const labels = data.map(d => d.date);
-  const closes = data.map(d => d.close);
-  const ma7    = data.map(d => d.ma_7);
-  const ma30   = data.map(d => d.ma_30);
-  const vols   = data.map(d => d.volume);
-
   const priceEl = document.getElementById("price-chart");
   const volEl   = document.getElementById("volume-chart");
   if (!priceEl || !volEl) return;
 
-  const ctx = priceEl.getContext("2d");
-  const grad = ctx.createLinearGradient(0, 0, 0, 300);
-  grad.addColorStop(0, "rgba(37,99,235,0.14)");
-  grad.addColorStop(1, "rgba(37,99,235,0.00)");
+  const isUp = d => (d.close ?? 0) >= (d.open ?? d.close ?? 0);
 
-  _price = new Chart(ctx, {
-    type: "line",
+  // ── Candlestick chart ──────────────────────────────
+  const candleData = data.map(d => ({
+    x: d.date,
+    o: d.open  ?? d.close,
+    h: d.high  ?? d.close,
+    l: d.low   ?? d.close,
+    c: d.close,
+  }));
+  const ma7Data  = data.map(d => ({ x: d.date, y: d.ma_7  }));
+  const ma30Data = data.map(d => ({ x: d.date, y: d.ma_30 }));
+
+  _price = new Chart(priceEl.getContext("2d"), {
+    type: "candlestick",
     data: {
-      labels,
       datasets: [
         {
-          label: "Close",
-          data: closes,
-          borderColor: C.blue,
-          backgroundColor: grad,
-          borderWidth: 2,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          pointHoverBackgroundColor: C.blue,
-          pointHoverBorderColor: "#fff",
-          pointHoverBorderWidth: 2,
-          fill: true,
-          tension: 0.25,
+          label: "Price",
+          data: candleData,
+          color: { up: C.green, down: C.red, unchanged: C.muted },
+          borderColor: { up: C.green, down: C.red, unchanged: C.muted },
+          backgroundColors: { up: "rgba(5,150,105,0.7)", down: "rgba(220,38,38,0.7)", unchanged: C.muted },
         },
         {
+          type: "line",
           label: "MA 7",
-          data: ma7,
+          data: ma7Data,
           borderColor: C.teal,
           borderWidth: 1.5,
           borderDash: [4, 3],
           pointRadius: 0,
           fill: false,
-          tension: 0.25,
+          tension: 0.3,
+          order: 1,
         },
         {
+          type: "line",
           label: "MA 30",
-          data: ma30,
+          data: ma30Data,
           borderColor: C.amber,
           borderWidth: 1.5,
           borderDash: [7, 3],
           pointRadius: 0,
           fill: false,
-          tension: 0.25,
+          tension: 0.3,
+          order: 0,
         },
       ],
     },
@@ -136,50 +134,53 @@ export function renderPriceChart(data) {
         tooltip: {
           ...BASE.plugins.tooltip,
           callbacks: {
-            title: items => {
-              const i = items[0].dataIndex;
-              const d = data[i];
-              return `${items[0].label}`;
-            },
-            afterTitle: items => {
-              const i = items[0].dataIndex;
-              const d = data[i];
-              return `O:${fINR(d.open)}  H:${fINR(d.high)}  L:${fINR(d.low)}`;
-            },
+            title: items => items[0]?.label ?? "",
             label: ctx => {
-              if (ctx.dataset.label === "Close")
-                return ` Close: ${fINR(ctx.parsed.y)}`;
+              const i = ctx.dataIndex;
+              const d = data[i];
+              if (ctx.dataset.label === "Price") {
+                const ret = d.daily_return;
+                const retStr = ret != null
+                  ? `  ${ret >= 0 ? "▲" : "▼"} ${Math.abs(ret * 100).toFixed(2)}%`
+                  : "";
+                return [
+                  ` O: ${fINR(d.open)}   H: ${fINR(d.high)}`,
+                  ` C: ${fINR(d.close)}  L: ${fINR(d.low)}${retStr}`,
+                  ` Vol: ${fVol(d.volume)}`,
+                ];
+              }
               return ` ${ctx.dataset.label}: ${fINR(ctx.parsed.y)}`;
             },
-            afterBody: items => {
-              const i = items[0].dataIndex;
-              const ret = data[i]?.daily_return;
-              if (ret == null) return [];
-              return [` Return: ${ret >= 0 ? "▲" : "▼"} ${Math.abs(ret * 100).toFixed(2)}%`];
-            },
+          },
+        },
+      },
+      scales: {
+        x: { ...BASE.scales.x, grid: { color: "#f1f5f9" } },
+        y: {
+          ...BASE.scales.y,
+          ticks: {
+            color: C.muted, font: { size: 10 },
+            callback: v => "₹" + Number(v).toLocaleString("en-IN"),
           },
         },
       },
     },
   });
 
-  // Volume chart
-  const volColors = data.map((d, i) => {
-    if (i === 0) return "rgba(37,99,235,0.4)";
-    const prev = data[i - 1]?.close ?? d.close;
-    return d.close >= prev ? "rgba(5,150,105,0.5)" : "rgba(220,38,38,0.5)";
-  });
+  // ── Volume chart ───────────────────────────────────
+  const volColors = data.map(d => isUp(d) ? "rgba(5,150,105,0.55)" : "rgba(220,38,38,0.55)");
 
   _vol = new Chart(volEl.getContext("2d"), {
     type: "bar",
     data: {
-      labels,
       datasets: [{
         label: "Volume",
-        data: vols,
+        data: data.map(d => ({ x: d.date, y: d.volume })),
         backgroundColor: volColors,
         borderWidth: 0,
         borderRadius: 1,
+        barPercentage: 0.8,
+        categoryPercentage: 0.9,
       }],
     },
     options: {
@@ -194,7 +195,7 @@ export function renderPriceChart(data) {
       scales: {
         x: { ...BASE.scales.x, ticks: { display: false }, grid: { display: false } },
         y: {
-          ticks: { color: C.muted, font: { size: 9 }, maxTicksLimit: 2, callback: v => fVol(v) },
+          ticks: { color: C.muted, font: { size: 9 }, maxTicksLimit: 3, callback: v => fVol(v) },
           grid: { color: "#f8fafc" },
           border: { color: C.border },
         },
@@ -202,16 +203,17 @@ export function renderPriceChart(data) {
     },
   });
 
-  // Legend
+  // ── Legend ─────────────────────────────────────────
   const leg = document.getElementById("price-legend");
   if (leg) {
     leg.innerHTML = [
-      { label: "Close", color: C.blue, type: "dot" },
-      { label: "MA 7",  color: C.teal,  type: "dash" },
-      { label: "MA 30", color: C.amber, type: "dash" },
+      { label: "Up day",  color: C.green, type: "box" },
+      { label: "Down day", color: C.red,  type: "box" },
+      { label: "MA 7",    color: C.teal,  type: "dash" },
+      { label: "MA 30",   color: C.amber, type: "dash" },
     ].map(({ label, color, type }) => `
       <span class="legend-item">
-        <span class="${type === "dot" ? "legend-dot" : "legend-dash"}" style="background:${color}"></span>
+        <span class="${type === "box" ? "legend-box" : "legend-dash"}" style="background:${color}"></span>
         ${label}
       </span>`).join("");
   }

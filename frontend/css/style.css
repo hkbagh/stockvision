@@ -351,12 +351,13 @@ html, body { height: 100%; font-family: "Inter",-apple-system,sans-serif; font-s
 .chart-panel { padding: 16px; }
 
 .chart-legend { display: flex; gap: 16px; margin-bottom: 10px; }
-.legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.legend-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .legend-dash { width: 16px; height: 2px; border-radius: 2px; flex-shrink: 0; }
+.legend-box  { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); font-weight: 500; }
 
-.price-chart-wrap  { height: 320px; position: relative; }
-.vol-chart-wrap    { height: 90px;  position: relative; margin-top: 6px; }
+.price-chart-wrap  { height: 380px; position: relative; cursor: crosshair; }
+.vol-chart-wrap    { height: 80px;  position: relative; margin-top: 4px; cursor: crosshair; }
 .compare-chart-wrap { height: 380px; position: relative; }
 .forecast-chart-wrap { height: 360px; position: relative; }
 .heatmap-wrap { overflow: auto; min-height: 200px; display: flex; justify-content: center; }
