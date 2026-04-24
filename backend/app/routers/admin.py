@@ -50,7 +50,7 @@ async def status(db: AsyncSession = Depends(get_db)):
 @router.get("/test-av")
 async def test_av():
     """Fetch raw Alpha Vantage response for TCS.BSE to diagnose data issues."""
-    import asyncio, time, requests
+    import requests
     from ..config import settings
     if not settings.ALPHA_VANTAGE_KEY:
         return {"error": "ALPHA_VANTAGE_KEY not set"}
