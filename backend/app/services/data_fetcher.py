@@ -25,29 +25,36 @@ _SESSION.headers.update({
 # ── Alpha Vantage fallback ─────────────────────────────────────────────────
 _AV_BASE = "https://www.alphavantage.co/query"
 _PERIOD_DAYS = {"5d": 5, "1mo": 30, "3mo": 90, "1y": 365, "2y": 730}
+_av_last_call: float = 0.0  # enforce 5 req/min free-tier rate limit
 
 
 def _av_symbol(symbol: str) -> str:
-    """Convert NSE symbol (TCS.NS) → Alpha Vantage symbol (TCS.BSE)."""
     return symbol.replace(".NS", ".BSE")
 
 
 def _fetch_alpha_vantage(symbol: str, period: str = "1y") -> Optional[pd.DataFrame]:
+    global _av_last_call
     if not settings.ALPHA_VANTAGE_KEY:
         return None
+    # Respect free-tier 5 req/min limit (12 s between calls)
+    elapsed = time.time() - _av_last_call
+    if elapsed < 12:
+        time.sleep(12 - elapsed)
     av_sym = _av_symbol(symbol)
     try:
         outputsize = "full" if period in ("1y", "2y") else "compact"
         resp = requests.get(_AV_BASE, params={
-            "function": "TIME_SERIES_DAILY_ADJUSTED",
+            "function": "TIME_SERIES_DAILY",
             "symbol": av_sym,
             "outputsize": outputsize,
             "apikey": settings.ALPHA_VANTAGE_KEY,
         }, timeout=20)
+        _av_last_call = time.time()
         data = resp.json()
         ts = data.get("Time Series (Daily)")
         if not ts:
-            logger.warning(f"Alpha Vantage: no data for {av_sym} — {data.get('Note') or data.get('Information') or 'unknown'}")
+            msg = data.get("Note") or data.get("Information") or data.get("Error Message") or "unknown"
+            logger.warning(f"Alpha Vantage: no data for {av_sym} — {msg}")
             return None
 
         rows = []
@@ -61,8 +68,8 @@ def _fetch_alpha_vantage(symbol: str, period: str = "1y") -> Optional[pd.DataFra
                 "open":   float(vals["1. open"]),
                 "high":   float(vals["2. high"]),
                 "low":    float(vals["3. low"]),
-                "close":  float(vals["5. adjusted close"]),
-                "volume": int(vals["6. volume"]),
+                "close":  float(vals["4. close"]),
+                "volume": int(vals["5. volume"]),
             })
 
         if not rows:
