@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check backend/app/
+
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt pytest pytest-asyncio httpx anyio
+      - name: Create test data dir
+        run: mkdir -p backend/data
+      - name: Run tests
+        run: |
+          cd backend
+          pytest tests/ -v --tb=short
+        env:
+          DATABASE_URL: "sqlite+aiosqlite:///./data/test_stocks.db"
+          ENVIRONMENT: "test"
+
+  docker-build:
+    name: Docker build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose build
+
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    # Only deploy on pushes to main (not on PRs), and only after all checks pass
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [lint, test, docker-build]
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          connect_timeout: 30s
+          script: |
+            set -e
+            cd /opt/stock-platform
+
+            echo "==> Pulling latest code"
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Refreshing TLS certificate if due"
+            sudo certbot renew --quiet --deploy-hook \
+              "cp /etc/letsencrypt/live/stock.bagh.co.in/fullchain.pem /opt/stock-platform/nginx/ssl/ && \
+               cp /etc/letsencrypt/live/stock.bagh.co.in/privkey.pem  /opt/stock-platform/nginx/ssl/ && \
+               docker compose exec -T nginx nginx -s reload" || true
+
+            echo "==> Rebuilding and restarting containers"
+            docker compose pull redis 2>/dev/null || true
+            docker compose up -d --build --remove-orphans
+
+            echo "==> Waiting for backend health"
+            for i in $(seq 1 12); do
+              STATUS=$(docker compose exec -T backend curl -sf http://localhost:8000/health | grep -o '"ok"' || true)
+              if [ "$STATUS" = '"ok"' ]; then
+                echo "Backend healthy after ${i}0s"
+                break
+              fi
+              echo "Attempt $i: waiting 10s..."
+              sleep 10
+            done
+
+            echo "==> Container status"
+            docker compose ps
+
+            echo "==> Cleaning up"
+            docker image prune -f
+
+            echo "Deploy complete at $(date)"

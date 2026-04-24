@@ -1,0 +1,62 @@
+name: CD
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to stock.bagh.co.in
+    runs-on: ubuntu-latest
+    environment: production
+
+    # Only deploy after CI passes
+    needs: []   # change to [lint, test] once CI is stable end-to-end
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Connect timeout generous for cold EC2 instances
+          connect_timeout: 30s
+          script: |
+            set -e
+            cd /opt/stock-platform
+
+            echo "==> Pulling latest code"
+            git fetch origin main
+            git reset --hard origin/main
+
+            echo "==> Refreshing TLS certificate if due"
+            sudo certbot renew --quiet --deploy-hook \
+              "cp /etc/letsencrypt/live/stock.bagh.co.in/fullchain.pem /opt/stock-platform/nginx/ssl/ && \
+               cp /etc/letsencrypt/live/stock.bagh.co.in/privkey.pem  /opt/stock-platform/nginx/ssl/ && \
+               docker compose exec -T nginx nginx -s reload" || true
+
+            echo "==> Rebuilding and restarting containers"
+            docker compose pull redis 2>/dev/null || true
+            docker compose up -d --build --remove-orphans
+
+            echo "==> Waiting for backend health check"
+            for i in $(seq 1 12); do
+              STATUS=$(docker compose exec -T backend curl -sf http://localhost:8000/health | grep -o '"ok"' || true)
+              if [ "$STATUS" = '"ok"' ]; then
+                echo "Backend healthy"
+                break
+              fi
+              echo "Attempt $i: not ready yet, waiting 10s..."
+              sleep 10
+            done
+
+            echo "==> Container status"
+            docker compose ps
+
+            echo "==> Cleaning up old images"
+            docker image prune -f
+
+            echo "Deploy complete at $(date)"

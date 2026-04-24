@@ -1,0 +1,15 @@
+.env
+data/stocks.db
+data/test_stocks.db
+ml/models/*.pkl
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.DS_Store
+nginx/ssl/fullchain.pem
+nginx/ssl/privkey.pem
