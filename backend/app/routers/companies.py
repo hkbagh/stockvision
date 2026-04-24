@@ -17,7 +17,7 @@ async def get_companies(db: AsyncSession = Depends(get_db)):
         return cached
 
     result = await db.execute(
-        select(Company).where(Company.is_active.is_(True)).order_by(Company.name)
+        select(Company).order_by(Company.name)
     )
     companies = result.scalars().all()
     data = [{"symbol": c.symbol, "name": c.name, "exchange": c.exchange, "sector": c.sector} for c in companies]

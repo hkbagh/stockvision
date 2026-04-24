@@ -5,33 +5,32 @@ const CHART_DEFAULTS = {
   plugins: {
     legend: {
       labels: {
-        color: "#3d4a5c", boxWidth: 12, font: { size: 12, family: "Inter, sans-serif" },
+        color: "#4c4a7c", boxWidth: 10, font: { size: 12, family: "Inter, sans-serif" },
         usePointStyle: true, pointStyleWidth: 8,
       },
     },
     tooltip: {
-      backgroundColor: "#ffffff",
-      borderColor: "#e2e6ed",
+      backgroundColor: "rgba(255,255,255,0.95)",
+      borderColor: "rgba(124,58,237,0.15)",
       borderWidth: 1,
-      titleColor: "#0f1929",
-      bodyColor: "#3d4a5c",
-      padding: 12,
-      cornerRadius: 8,
-      boxShadow: "0 4px 12px rgba(0,0,0,.08)",
+      titleColor: "#1e1b4b",
+      bodyColor: "#4c4a7c",
+      padding: 14,
+      cornerRadius: 12,
     },
   },
   scales: {
     x: {
       type: "time",
       time: { unit: "day", tooltipFormat: "dd MMM yyyy" },
-      ticks: { color: "#7b8799", maxTicksLimit: 8, font: { size: 11 } },
-      grid: { color: "#f0f2f6" },
-      border: { color: "#e2e6ed" },
+      ticks: { color: "#9b98c4", maxTicksLimit: 8, font: { size: 11 } },
+      grid: { color: "rgba(124,58,237,0.05)" },
+      border: { color: "rgba(124,58,237,0.10)" },
     },
     y: {
-      ticks: { color: "#7b8799", font: { size: 11 } },
-      grid: { color: "#f0f2f6" },
-      border: { color: "#e2e6ed" },
+      ticks: { color: "#9b98c4", font: { size: 11 } },
+      grid: { color: "rgba(124,58,237,0.05)" },
+      border: { color: "rgba(124,58,237,0.10)" },
     },
   },
 };
@@ -55,34 +54,34 @@ export function renderPriceChart(data) {
         {
           label: "Close",
           data: data.map(d => d.close),
-          borderColor: "#1a73e8",
-          backgroundColor: "rgba(26,115,232,.07)",
-          borderWidth: 2,
+          borderColor: "#7c3aed",
+          backgroundColor: "rgba(124,58,237,.06)",
+          borderWidth: 2.5,
           pointRadius: 0,
           pointHoverRadius: 5,
-          pointHoverBackgroundColor: "#1a73e8",
+          pointHoverBackgroundColor: "#7c3aed",
           fill: true,
-          tension: 0.3,
+          tension: 0.35,
         },
         {
           label: "MA 7",
           data: data.map(d => d.ma_7),
-          borderColor: "#f59e0b",
+          borderColor: "#0ea5e9",
           borderWidth: 1.5,
           borderDash: [5, 4],
           pointRadius: 0,
           fill: false,
-          tension: 0.3,
+          tension: 0.35,
         },
         {
           label: "MA 30",
           data: data.map(d => d.ma_30),
-          borderColor: "#7c3aed",
+          borderColor: "#ec4899",
           borderWidth: 1.5,
           borderDash: [7, 3],
           pointRadius: 0,
           fill: false,
-          tension: 0.3,
+          tension: 0.35,
         },
       ],
     },
@@ -120,23 +119,23 @@ export function renderCompareChart(sym1, data1, sym2, data2) {
         {
           label: sym1,
           data: allLabels.map(d => map1[d] ?? null),
-          borderColor: "#1a73e8",
-          backgroundColor: "rgba(26,115,232,.06)",
-          borderWidth: 2,
+          borderColor: "#7c3aed",
+          backgroundColor: "rgba(124,58,237,.06)",
+          borderWidth: 2.5,
           pointRadius: 0,
           fill: true,
-          tension: 0.3,
+          tension: 0.35,
           yAxisID: "y",
         },
         {
           label: sym2,
           data: allLabels.map(d => map2[d] ?? null),
-          borderColor: "#00a86b",
-          backgroundColor: "rgba(0,168,107,.06)",
-          borderWidth: 2,
+          borderColor: "#0ea5e9",
+          backgroundColor: "rgba(14,165,233,.06)",
+          borderWidth: 2.5,
           pointRadius: 0,
           fill: true,
-          tension: 0.3,
+          tension: 0.35,
           yAxisID: "y1",
         },
       ],
@@ -148,13 +147,13 @@ export function renderCompareChart(sym1, data1, sym2, data2) {
         y: {
           ...CHART_DEFAULTS.scales.y,
           position: "left",
-          title: { display: true, text: sym1, color: "#58a6ff" },
+          title: { display: true, text: sym1, color: "#7c3aed" },
         },
         y1: {
           ...CHART_DEFAULTS.scales.y,
           position: "right",
           grid: { drawOnChartArea: false },
-          title: { display: true, text: sym2, color: "#3fb950" },
+          title: { display: true, text: sym2, color: "#0ea5e9" },
         },
       },
     },
@@ -182,25 +181,25 @@ export function renderPredictionChart(histData, predictions) {
         {
           label: "Historical Close",
           data: histLabels.map((d, i) => ({ x: d, y: histClose[i] })),
-          borderColor: "#1a73e8",
-          backgroundColor: "rgba(26,115,232,.07)",
-          borderWidth: 2,
+          borderColor: "#7c3aed",
+          backgroundColor: "rgba(124,58,237,.06)",
+          borderWidth: 2.5,
           pointRadius: 0,
           fill: true,
-          tension: 0.3,
+          tension: 0.35,
         },
         {
           label: "AI Forecast",
           data: predLabelsBridge.map((d, i) => ({ x: d, y: predWithBridge[i] })),
-          borderColor: "#7c3aed",
+          borderColor: "#0ea5e9",
           borderDash: [6, 4],
           borderWidth: 2.5,
           pointRadius: 5,
-          pointBackgroundColor: "#7c3aed",
+          pointBackgroundColor: "#0ea5e9",
           pointBorderColor: "#fff",
           pointBorderWidth: 2,
           fill: false,
-          tension: 0.3,
+          tension: 0.35,
         },
       ],
     },
@@ -232,11 +231,11 @@ export function renderCorrelationHeatmap(symbols, matrix) {
   canvas.height = size;
   const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = "rgba(244,242,255,0)";
   ctx.fillRect(0, 0, size, size);
 
   ctx.font = "10px Inter, -apple-system, sans-serif";
-  ctx.fillStyle = "#7b8799";
+  ctx.fillStyle = "#9b98c4";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
 
@@ -264,15 +263,15 @@ export function renderCorrelationHeatmap(symbols, matrix) {
       } else {
         const abs = Math.abs(val);
         if (val >= 0) {
-          ctx.fillStyle = `rgba(0,168,107,${0.08 + abs * 0.75})`;
+          ctx.fillStyle = `rgba(16,185,129,${0.10 + abs * 0.70})`;
         } else {
-          ctx.fillStyle = `rgba(229,57,53,${0.08 + abs * 0.75})`;
+          ctx.fillStyle = `rgba(244,63,94,${0.10 + abs * 0.70})`;
         }
       }
       ctx.fillRect(x, y, cellSize - 1, cellSize - 1);
 
       if (val !== null && val !== undefined) {
-        ctx.fillStyle = Math.abs(val) > 0.65 ? "#fff" : "#3d4a5c";
+        ctx.fillStyle = Math.abs(val) > 0.65 ? "#fff" : "#4c4a7c";
         ctx.font = "8px Inter, -apple-system, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
