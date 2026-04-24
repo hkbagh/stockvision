@@ -45,3 +45,36 @@ async def status(db: AsyncSession = Depends(get_db)):
     companies = (await db.execute(select(func.count()).select_from(Company))).scalar()
     prices = (await db.execute(select(func.count()).select_from(StockPrice))).scalar()
     return {"companies": companies, "price_rows": prices}
+
+
+@router.get("/test-av")
+async def test_av():
+    """Fetch raw Alpha Vantage response for TCS.BSE to diagnose data issues."""
+    import asyncio, time, requests
+    from ..config import settings
+    if not settings.ALPHA_VANTAGE_KEY:
+        return {"error": "ALPHA_VANTAGE_KEY not set"}
+    try:
+        resp = requests.get(
+            "https://www.alphavantage.co/query",
+            params={
+                "function": "TIME_SERIES_DAILY",
+                "symbol": "TCS.BSE",
+                "outputsize": "full",
+                "apikey": settings.ALPHA_VANTAGE_KEY,
+            },
+            timeout=30,
+        )
+        data = resp.json()
+        ts = data.get("Time Series (Daily)", {})
+        dates = sorted(ts.keys()) if ts else []
+        return {
+            "key_set": bool(settings.ALPHA_VANTAGE_KEY),
+            "av_keys": list(data.keys()),
+            "note": data.get("Note") or data.get("Information") or data.get("Error Message"),
+            "row_count": len(dates),
+            "oldest_date": dates[0] if dates else None,
+            "newest_date": dates[-1] if dates else None,
+        }
+    except Exception as e:
+        return {"error": str(e)}
