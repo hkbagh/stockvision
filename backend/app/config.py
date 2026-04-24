@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379"
     CACHE_TTL_DEFAULT: int = 300
     ENVIRONMENT: str = "development"
+    ALPHA_VANTAGE_KEY: str = ""
     LOG_LEVEL: str = "INFO"
     SYMBOLS: List[str] = [
         "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS",
