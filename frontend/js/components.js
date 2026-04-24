@@ -2,6 +2,18 @@ function getInitials(symbol) {
   return symbol.replace(".NS", "").slice(0, 2).toUpperCase();
 }
 
+function fmtINR(v) {
+  if (v == null) return "—";
+  return "₹" + Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtVol(v) {
+  if (v == null) return "—";
+  if (v >= 1e7) return (v / 1e7).toFixed(2) + " Cr";
+  if (v >= 1e5) return (v / 1e5).toFixed(2) + " L";
+  return v.toLocaleString();
+}
+
 export function buildCompanyList(companies, onSelect) {
   const ul = document.getElementById("company-list");
   ul.innerHTML = "";
@@ -23,10 +35,8 @@ export function buildCompanyList(companies, onSelect) {
 
 export function setActiveCompany(symbol) {
   document.querySelectorAll("#company-list li").forEach(li => {
-    const active = li.dataset.symbol === symbol;
-    li.classList.toggle("active", active);
+    li.classList.toggle("active", li.dataset.symbol === symbol);
   });
-
   const logoEl = document.getElementById("stock-logo");
   if (logoEl) logoEl.textContent = getInitials(symbol);
 }
@@ -77,29 +87,90 @@ export function populateCompareSelect(companies, currentSymbol) {
 }
 
 export function updateSummaryCards(summary) {
-  const fmtINR = v => v != null
-    ? `₹${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    : "—";
-  const fmtPct = v => v != null ? `${(v * 100).toFixed(2)}%` : "—";
-
+  // Main cards
   document.getElementById("card-52h").textContent = fmtINR(summary.week52_high);
   document.getElementById("card-52l").textContent = fmtINR(summary.week52_low);
-  document.getElementById("card-avg").textContent = fmtINR(summary.avg_close);
-  document.getElementById("card-vol").textContent = fmtPct(summary.volatility);
+  document.getElementById("card-avg").textContent  = fmtINR(summary.avg_close);
+
+  const vol = summary.volatility;
+  document.getElementById("card-vol").textContent  = vol != null ? `${(vol * 100).toFixed(2)}%` : "—";
   document.getElementById("card-pred").textContent = fmtINR(summary.predicted_close_tomorrow);
 
+  // Price + return
   document.getElementById("stock-price").textContent = fmtINR(summary.latest_close);
   document.getElementById("stock-name").textContent  = summary.name;
-
-  const sym = document.getElementById("stock-symbol");
-  sym.textContent = summary.symbol;
+  document.getElementById("stock-symbol").textContent = summary.symbol;
 
   const ret = summary.latest_daily_return;
   const retEl = document.getElementById("stock-return");
-  retEl.textContent = ret != null
-    ? `${ret >= 0 ? "▲" : "▼"} ${Math.abs(ret * 100).toFixed(2)}%`
-    : "—";
-  retEl.className = `stock-return ${ret >= 0 ? "up" : "down"}`;
+  if (ret != null) {
+    const sign = ret >= 0 ? "▲" : "▼";
+    const changeAbs = summary.latest_close != null && summary.latest_open != null
+      ? fmtINR(summary.latest_close - summary.latest_open)
+      : "";
+    retEl.textContent = `${sign} ${Math.abs(ret * 100).toFixed(2)}%  ${changeAbs}`;
+    retEl.className = `stock-return ${ret >= 0 ? "up" : "down"}`;
+  } else {
+    retEl.textContent = "—";
+    retEl.className = "stock-return";
+  }
+
+  // OHLC row
+  document.getElementById("ohlc-open").textContent   = fmtINR(summary.latest_open);
+  document.getElementById("ohlc-high").textContent   = fmtINR(summary.latest_high);
+  document.getElementById("ohlc-low").textContent    = fmtINR(summary.latest_low);
+  document.getElementById("ohlc-volume").textContent = fmtVol(summary.latest_volume);
+
+  // 52W range bar
+  const lo = summary.week52_low;
+  const hi = summary.week52_high;
+  const cur = summary.latest_close;
+  const fillEl = document.getElementById("range52-fill");
+  const dotEl  = document.getElementById("range52-dot");
+  document.getElementById("range52-low").textContent  = fmtINR(lo);
+  document.getElementById("range52-high").textContent = fmtINR(hi);
+  if (lo != null && hi != null && cur != null && hi > lo) {
+    const pct = Math.min(Math.max((cur - lo) / (hi - lo) * 100, 0), 100).toFixed(1);
+    fillEl.style.width = pct + "%";
+    dotEl.style.left   = pct + "%";
+  }
+
+  // AI forecast change arrow
+  const pred = summary.predicted_close_tomorrow;
+  const close = summary.latest_close;
+  const predEl = document.getElementById("card-pred");
+  if (pred != null && close != null) {
+    const diff = pred - close;
+    const sign = diff >= 0 ? "▲" : "▼";
+    const cls  = diff >= 0 ? "text-green" : "text-red";
+    predEl.innerHTML = `${fmtINR(pred)} <small class="${cls}">${sign} ${Math.abs((diff / close) * 100).toFixed(2)}%</small>`;
+  }
+}
+
+export function updatePredStats(pred) {
+  const el = document.getElementById("pred-stats");
+  if (!el || !pred) return;
+  const mae = pred.mae != null ? fmtINR(pred.mae) : "—";
+  const conf = pred.confidence ?? "—";
+  const confClass = conf === "high" ? "text-green" : conf === "low" ? "text-red" : "";
+  el.innerHTML = `
+    <div class="pred-stat-item">
+      <span class="pred-stat-label">Model</span>
+      <span class="pred-stat-val">${pred.model_version ?? "—"}</span>
+    </div>
+    <div class="pred-stat-item">
+      <span class="pred-stat-label">MAE</span>
+      <span class="pred-stat-val">${mae}</span>
+    </div>
+    <div class="pred-stat-item">
+      <span class="pred-stat-label">Confidence</span>
+      <span class="pred-stat-val ${confClass}">${conf.toUpperCase()}</span>
+    </div>
+    <div class="pred-stat-item">
+      <span class="pred-stat-label">Horizon</span>
+      <span class="pred-stat-val">${pred.predictions?.length ?? 0} days</span>
+    </div>
+  `;
 }
 
 export function setMarketStatus() {
@@ -119,4 +190,8 @@ export function setMarketStatus() {
   }
 }
 
-window.Components = { buildCompanyList, setActiveCompany, filterCompanyList, buildMoversList, populateCompareSelect, updateSummaryCards, setMarketStatus };
+window.Components = {
+  buildCompanyList, setActiveCompany, filterCompanyList,
+  buildMoversList, populateCompareSelect, updateSummaryCards,
+  updatePredStats, setMarketStatus,
+};

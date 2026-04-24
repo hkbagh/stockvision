@@ -2,7 +2,8 @@ import { Api } from "./api.js";
 import { renderPriceChart, renderCompareChart, renderPredictionChart, renderCorrelationHeatmap } from "./charts.js";
 import {
   buildCompanyList, setActiveCompany, filterCompanyList,
-  buildMoversList, populateCompareSelect, updateSummaryCards, setMarketStatus,
+  buildMoversList, populateCompareSelect, updateSummaryCards,
+  updatePredStats, setMarketStatus,
 } from "./components.js";
 
 const State = {
@@ -11,6 +12,8 @@ const State = {
   activeDays: 30,
   activeTab: "price",
   heatmapLoaded: false,
+  normalized: false,
+  lastCompareData: null,
 };
 
 window.AppState = { selectSymbol };
@@ -25,10 +28,8 @@ async function init() {
   try {
     const [companies, movers] = await Promise.all([Api.getCompanies(), Api.getTopGainers(5)]);
     State.companies = companies;
-
     buildCompanyList(companies, selectSymbol);
     buildMoversList(movers.gainers, movers.losers);
-
     document.getElementById("last-updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
   } catch (err) {
     console.error("Init error:", err);
@@ -38,7 +39,8 @@ async function init() {
   hide("loading-overlay");
   show("welcome-state");
 
-  document.getElementById("search-input").addEventListener("input", e => filterCompanyList(e.target.value));
+  document.getElementById("search-input")
+    .addEventListener("input", e => filterCompanyList(e.target.value));
 
   document.querySelectorAll(".range-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -60,11 +62,20 @@ async function init() {
   });
 
   document.getElementById("compare-btn").addEventListener("click", triggerCompare);
+
+  document.getElementById("normalize-toggle").addEventListener("change", e => {
+    State.normalized = e.target.checked;
+    if (State.lastCompareData) {
+      const { d } = State.lastCompareData;
+      renderCompareChart(d.symbol1, d.series1, d.symbol2, d.series2, State.normalized);
+    }
+  });
 }
 
 async function selectSymbol(symbol) {
   State.selectedSymbol = symbol;
   State.heatmapLoaded = false;
+  State.lastCompareData = null;
   setActiveCompany(symbol);
 
   hide("welcome-state");
@@ -90,6 +101,10 @@ async function loadSummary() {
 async function loadPriceChart() {
   try {
     const data = await Api.getStockData(State.selectedSymbol, State.activeDays);
+    if (!data || data.length === 0) {
+      console.warn("No price data returned");
+      return;
+    }
     renderPriceChart(data);
   } catch (err) {
     console.error("Price chart error:", err);
@@ -113,14 +128,16 @@ async function loadPredictionChart() {
   if (!State.selectedSymbol) return;
   try {
     const [hist, pred] = await Promise.all([
-      Api.getStockData(State.selectedSymbol, 60),
+      Api.getStockData(State.selectedSymbol, 90),
       Api.getPrediction(State.selectedSymbol),
     ]);
     renderPredictionChart(hist, pred.predictions);
+    updatePredStats(pred);
     document.getElementById("pred-meta").textContent =
-      `Model: ${pred.model_version} | MAE: ₹${pred.mae?.toFixed(2) ?? "—"} | Confidence: ${pred.confidence}`;
+      `Training window: 1 year  |  Splits: 5-fold TimeSeriesSplit`;
   } catch (err) {
     console.error("Prediction error:", err);
+    document.getElementById("pred-meta").textContent = "Prediction unavailable — needs more historical data";
   }
 }
 
@@ -139,12 +156,17 @@ async function triggerCompare() {
   if (!State.selectedSymbol || !compareSymbol) return;
 
   try {
-    const data = await Api.compare(State.selectedSymbol, compareSymbol, State.activeDays);
-    renderCompareChart(data.symbol1, data.series1, data.symbol2, data.series2);
+    const d = await Api.compare(State.selectedSymbol, compareSymbol, State.activeDays);
+    State.lastCompareData = { d };
+    renderCompareChart(d.symbol1, d.series1, d.symbol2, d.series2, State.normalized);
 
     const badge = document.getElementById("correlation-badge");
-    if (data.correlation != null) {
-      badge.textContent = `Correlation: ${data.correlation.toFixed(3)}`;
+    const valEl = document.getElementById("correlation-value");
+    if (d.correlation != null) {
+      const abs = Math.abs(d.correlation);
+      const strength = abs > 0.75 ? "Strong" : abs > 0.4 ? "Moderate" : "Weak";
+      const dir = d.correlation >= 0 ? "positive" : "negative";
+      valEl.textContent = `${d.correlation.toFixed(3)} — ${strength} ${dir} correlation`;
       badge.classList.remove("hidden");
     } else {
       badge.classList.add("hidden");
