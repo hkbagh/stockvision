@@ -1,27 +1,92 @@
 # StockVision — NSE/BSE Financial Data Platform
 
-> A production-ready financial data platform for Indian stock markets, built with FastAPI, SQLite, Chart.js, and Docker.
+> Internship project built at **[Jarnox](https://jarnox.in)** · [GitHub](https://github.com/hkbagh/stockvision) · [Live](https://stock.bagh.co.in)
 
-**Live site:** https://stock.bagh.co.in &nbsp;|&nbsp; **API docs:** https://stock.bagh.co.in/docs
-
----
-
-## What it does
-
-- Fetches 1 year of daily OHLCV data for 19 Nifty50 stocks from Yahoo Finance
-- Calculates daily return, 7-day & 30-day moving averages, annualised volatility, 52-week high/low
-- Exposes 8 REST endpoints with Redis-backed caching
-- Trains a LinearRegression model per symbol and serves 7-day price forecasts
-- Serves an interactive dark-theme dashboard — charts, compare mode, correlation heatmap, ML prediction overlay
-- Auto-refreshes data daily at 07:00 IST and every 15 min during market hours
+A full-stack financial data platform for Indian equity markets. It pulls daily OHLCV data from Alpha Vantage, computes technical metrics, trains an ML price-prediction model per symbol, and serves everything through a REST API and an interactive candlestick dashboard.
 
 ---
 
-## Quick start — Docker (recommended)
+## Live URLs
+
+| URL | Description |
+|-----|-------------|
+| https://stock.bagh.co.in | Interactive dashboard |
+| https://stock.bagh.co.in/api/docs | Swagger UI (API explorer) |
+| https://stock.bagh.co.in/api/redoc | ReDoc |
+| https://stock.bagh.co.in/api/health | Health check |
+
+---
+
+## Features
+
+- **20 Nifty 50 stocks** tracked: RELIANCE, TCS, INFY, HDFCBANK, ICICIBANK, SBIN, KOTAKBANK, AXISBANK, HINDUNILVR, ITC, NESTLEIND, BHARTIARTL, WIPRO, LT, ASIANPAINT, MARUTI, BAJFINANCE, SUNPHARMA, ULTRACEMCO, TATAMOTORS
+- **Candlestick price chart** with high/low wicks, MA-7, MA-30 overlays, and volume bars
+- **Range buttons** — 1W / 1M / 3M / 1Y views
+- **OHLCV bar** + 52-week range widget + KPI cards (52W High/Low, Avg Close, Volatility, AI Forecast)
+- **Compare mode** — dual-line chart with Pearson correlation badge
+- **AI Forecast tab** — next 7 trading days via LinearRegression (per symbol)
+- **Correlation heatmap** — 20×20 matrix across all symbols
+- **Top Gainers / Losers** sidebar
+- **Auto-refresh** — daily at 07:00 IST + market-close capture at 16:00 IST (Mon–Fri)
+- **Redis cache** with in-memory TTL fallback (no Redis required for dev)
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|-------|------------|
+| Backend | Python 3.11, FastAPI 0.111, Uvicorn |
+| ORM | SQLAlchemy 2.0 (async) + aiosqlite |
+| Database | SQLite (persistent volume) |
+| Data source | Alpha Vantage TIME_SERIES_DAILY API |
+| Data processing | pandas, numpy |
+| ML | scikit-learn LinearRegression, joblib |
+| Caching | Redis 7 + in-memory TTL fallback |
+| Scheduler | APScheduler 3.10 (AsyncIO) |
+| Frontend | Vanilla JS ES modules, Chart.js 4.4, chartjs-adapter-date-fns |
+| Reverse proxy | Nginx (Alpine) — TLS termination + API proxy |
+| Containerisation | Docker Compose (backend · frontend · redis · nginx) |
+| CI/CD | GitHub Actions — lint + test on PR, auto-deploy on push to `main` |
+
+---
+
+## Architecture
+
+```
+                     HTTPS (443)
+Browser ──────────► Nginx ──────► /          → Frontend (static HTML/JS/CSS)
+                               ├── /api/     → FastAPI backend (port 8000)
+                               ├── /docs     → Swagger UI
+                               └── /redoc    → ReDoc
+
+FastAPI backend:
+  startup  → _seed_background() — fetch & store data if DB is sparse
+  daily    → APScheduler 07:00 IST — full refresh + ML retrain
+  16:00    → APScheduler Mon–Fri — market-close incremental refresh
+
+Data pipeline:
+  Alpha Vantage API → data_fetcher.py → data_processor.py → SQLite
+                                                          → ml_predictor.py → PricePrediction table
+```
+
+---
+
+## Local development
+
+### Prerequisites
+- Docker Desktop (recommended) **or** Python 3.11 + pip
+- Alpha Vantage free API key → https://www.alphavantage.co/support/#api-key
+
+### With Docker (recommended)
 
 ```bash
-git clone <repo> stock-platform && cd stock-platform
+git clone https://github.com/hkbagh/stockvision.git
+cd stockvision
+
 cp .env.example .env
+# Edit .env — set ALPHA_VANTAGE_KEY=your_key_here
+
 docker compose up --build
 ```
 
@@ -30,156 +95,117 @@ docker compose up --build
 | http://localhost | Dashboard |
 | http://localhost/docs | Swagger UI |
 | http://localhost/redoc | ReDoc |
-| http://localhost:8000/health | Health check (backend direct) |
+| http://localhost:8000/health | Backend health check |
 
-> First run fetches ~249 rows × 19 symbols from Yahoo Finance. Allow 3–5 minutes before data appears.
+On first launch the backend automatically seeds the database (~4 min for 20 symbols at Alpha Vantage free-tier rate of 5 req/min).
 
----
-
-## Quick start — without Docker
+### Without Docker
 
 ```bash
-# 1. Install dependencies
+# Backend
 cd backend
 pip install -r requirements.txt
-
-# 2. Create env file
-cp ../.env.example ../.env
-
-# 3. Start backend (auto-seeds DB on first launch)
+cp ../.env.example ../.env   # set ALPHA_VANTAGE_KEY
 uvicorn app.main:app --reload --port 8000
 
-# 4. Serve frontend (separate terminal)
-cd ../frontend
+# Frontend (separate terminal)
+cd frontend
 python -m http.server 3000
 ```
 
-Open http://localhost:3000 for the dashboard, http://localhost:8000/docs for the API.
+Dashboard: http://localhost:3000 · API: http://localhost:8000/docs
+
+---
+
+## Environment variables
+
+| Variable | Default | Required | Description |
+|----------|---------|----------|-------------|
+| `ALPHA_VANTAGE_KEY` | — | **Yes** | Free tier key (25 req/day, 5 req/min) |
+| `DATABASE_URL` | `sqlite+aiosqlite:///./data/stocks.db` | No | SQLAlchemy async DB URL |
+| `REDIS_URL` | `redis://redis:6379` | No | Redis (falls back to in-memory cache if absent) |
+| `ENVIRONMENT` | `development` | No | `development` or `production` |
+| `LOG_LEVEL` | `INFO` | No | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
 
 ---
 
 ## API reference
 
-All endpoints return JSON. Base URL: `http://localhost:8000` (local) or `https://stock.bagh.co.in/api` (prod).
+Base URL: `http://localhost:8000` (local) or `https://stock.bagh.co.in/api` (production).
 
-### `GET /health`
-```json
-{ "status": "ok", "version": "1.0.0" }
-```
-
-### `GET /companies`
-Returns all tracked companies.
-```json
-[
-  { "symbol": "RELIANCE.NS", "name": "Reliance Industries", "exchange": "NSE", "sector": "Energy" },
-  ...
-]
-```
-
-### `GET /data/{symbol}?days=30`
-Returns OHLCV + computed metrics. `days` accepts `1–365`, default `30`.
-```json
-[
-  {
-    "date": "2026-04-23",
-    "open": 1346.0, "high": 1355.5, "low": 1340.7, "close": 1343.4,
-    "volume": 16385079,
-    "daily_return": -0.00193,
-    "ma_7": 1353.5,
-    "ma_30": 1368.9
-  }
-]
-```
-
-### `GET /summary/{symbol}`
-One-row summary with 52-week stats and tomorrow's ML forecast.
-```json
-{
-  "symbol": "RELIANCE.NS",
-  "name": "Reliance Industries",
-  "week52_high": 1592.3,
-  "week52_low": 1294.8,
-  "avg_close": 1434.5,
-  "latest_close": 1343.4,
-  "latest_daily_return": -0.00193,
-  "volatility": 0.237,
-  "predicted_close_tomorrow": 1357.4
-}
-```
-
-### `GET /compare?symbol1=INFY.NS&symbol2=TCS.NS&days=90`
-Two price series + Pearson correlation over the shared date range.
-```json
-{
-  "symbol1": "INFY.NS", "name1": "Infosys",
-  "symbol2": "TCS.NS",  "name2": "Tata Consultancy Services",
-  "series1": [ { "date": "...", "close": 1234.5, ... } ],
-  "series2": [ ... ],
-  "correlation": 0.9689
-}
-```
-
-### `GET /top-gainers?limit=10`
-Today's top movers sorted by daily return.
-```json
-{
-  "gainers": [ { "symbol": "NESTLEIND.NS", "name": "Nestle India", "daily_return": 0.0156, "close": 2345.6, "volume": 123456 } ],
-  "losers":  [ { "symbol": "INFY.NS", "daily_return": -0.0107, ... } ],
-  "date": "2026-04-23"
-}
-```
-
-### `GET /correlation`
-Full N×N Pearson correlation matrix over 1 year of close prices.
-```json
-{
-  "symbols": ["ASIANPAINT.NS", "AXISBANK.NS", ...],
-  "matrix": [[1.0, 0.72, ...], [0.72, 1.0, ...], ...]
-}
-```
-
-### `GET /predict/{symbol}`
-Next 7 trading days predicted close prices.
-```json
-{
-  "symbol": "RELIANCE.NS",
-  "name": "Reliance Industries",
-  "predictions": [
-    { "date": "2026-04-27", "predicted_close": 1357.44 },
-    { "date": "2026-04-28", "predicted_close": 1357.49 }
-  ],
-  "mae": 39.99,
-  "model_version": "linreg_v1",
-  "confidence": "low"
-}
-```
-`confidence` is `"high"` when MAE < 2% of current price, otherwise `"low"`.
+| Method | Endpoint | Cache TTL | Description |
+|--------|----------|-----------|-------------|
+| GET | `/health` | — | Liveness probe |
+| GET | `/companies` | 1 h | List of all 20 tracked companies |
+| GET | `/data/{symbol}?days=30` | 5 min | OHLCV + metrics for last N days (1–365) |
+| GET | `/summary/{symbol}` | 5 min | 52W hi/lo, volatility, latest close, ML forecast |
+| GET | `/compare?symbol1=&symbol2=&days=90` | 5 min | Dual price series + Pearson correlation |
+| GET | `/top-gainers?limit=10` | 2 min | Top gainers and losers by daily return |
+| GET | `/correlation` | 1 h | Full N×N correlation matrix |
+| GET | `/predict/{symbol}` | 1 h | Next 7 trading days predicted close + MAE |
+| POST | `/admin/reseed` | — | Trigger full data fetch + ML retrain |
+| GET | `/admin/status` | — | Row counts (companies, price rows) |
 
 ---
 
-## Tracked symbols
+## Deployment — stock.bagh.co.in
 
-| Symbol | Company | Sector |
-|--------|---------|--------|
-| RELIANCE.NS | Reliance Industries | Energy |
-| TCS.NS | Tata Consultancy Services | Technology |
-| INFY.NS | Infosys | Technology |
-| HDFCBANK.NS | HDFC Bank | Banking |
-| ICICIBANK.NS | ICICI Bank | Banking |
-| SBIN.NS | State Bank of India | Banking |
-| KOTAKBANK.NS | Kotak Mahindra Bank | Banking |
-| AXISBANK.NS | Axis Bank | Banking |
-| HINDUNILVR.NS | Hindustan Unilever | FMCG |
-| ITC.NS | ITC Limited | FMCG |
-| NESTLEIND.NS | Nestle India | FMCG |
-| BHARTIARTL.NS | Bharti Airtel | Telecom |
-| WIPRO.NS | Wipro | Technology |
-| LT.NS | Larsen & Toubro | Infrastructure |
-| ASIANPAINT.NS | Asian Paints | Paints |
-| MARUTI.NS | Maruti Suzuki | Automobile |
-| BAJFINANCE.NS | Bajaj Finance | Finance |
-| SUNPHARMA.NS | Sun Pharmaceutical | Pharma |
-| ULTRACEMCO.NS | UltraTech Cement | Cement |
+The project uses **GitHub Actions** for zero-touch CI/CD.
+
+### How it works
+
+```
+Developer pushes to main
+  │
+  ├── CI job (ci.yml)
+  │     ruff lint → pytest → docker build check
+  │
+  └── CD job (cd.yml)  [runs after CI passes]
+        SSH into server → git pull → docker compose up -d --build
+        → backend restarts → auto-reseed if DB is sparse
+```
+
+### Server setup (one-time)
+
+```bash
+# On the server (Ubuntu / Debian)
+git clone https://github.com/hkbagh/stockvision.git /opt/stockvision
+cd /opt/stockvision
+
+cp .env.example .env
+# Edit .env — set ALPHA_VANTAGE_KEY and ENVIRONMENT=production
+
+# TLS certificate (Let's Encrypt)
+certbot certonly --standalone -d stock.bagh.co.in
+cp /etc/letsencrypt/live/stock.bagh.co.in/fullchain.pem nginx/ssl/
+cp /etc/letsencrypt/live/stock.bagh.co.in/privkey.pem  nginx/ssl/
+
+# Launch
+docker compose up -d --build
+
+# Auto-renew TLS (add to crontab)
+0 3 * * * certbot renew --quiet && docker compose exec nginx nginx -s reload
+```
+
+### GitHub Actions secrets required
+
+| Secret | Value |
+|--------|-------|
+| `SERVER_HOST` | Server IP or hostname |
+| `SERVER_USER` | SSH username (e.g. `ubuntu`) |
+| `SSH_PRIVATE_KEY` | Private key matching the server's `~/.ssh/authorized_keys` |
+
+### Manual reseed after deploy
+
+The backend auto-reseeds on startup if it detects fewer than 1500 price rows. To force an immediate reseed:
+
+```bash
+curl -X POST https://stock.bagh.co.in/api/admin/reseed
+
+# Verify after ~4 minutes (20 symbols × 12 s AV rate limit)
+curl https://stock.bagh.co.in/api/admin/status
+# → { "companies": 20, "price_rows": ~2000 }
+```
 
 ---
 
@@ -191,103 +217,59 @@ pip install pytest pytest-asyncio httpx anyio
 pytest tests/ -v
 ```
 
-All 19 tests pass against an in-memory SQLite test database — no network calls needed.
-
-```
-tests/test_data_processor.py   7 passed  (metric calculations)
-tests/test_ml_predictor.py     4 passed  (feature engineering, training)
-tests/test_routers.py          8 passed  (HTTP integration)
-```
-
----
-
-## Environment variables
-
-Copy `.env.example` to `.env` and edit as needed:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | `sqlite+aiosqlite:///./data/stocks.db` | SQLAlchemy async DB URL |
-| `REDIS_URL` | `redis://redis:6379` | Redis connection (optional — falls back to in-memory cache) |
-| `ENVIRONMENT` | `development` | `development` or `production` |
-| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-
----
-
-## Production deployment — stock.bagh.co.in
-
-```bash
-# 1. Clone on server
-git clone <repo> /opt/stock-platform && cd /opt/stock-platform
-cp .env.example .env          # set ENVIRONMENT=production
-
-# 2. TLS via Let's Encrypt
-certbot certonly --standalone -d stock.bagh.co.in
-cp /etc/letsencrypt/live/stock.bagh.co.in/fullchain.pem nginx/ssl/
-cp /etc/letsencrypt/live/stock.bagh.co.in/privkey.pem  nginx/ssl/
-
-# 3. Enable HTTPS redirect in nginx/nginx.conf (uncomment return 301 line)
-
-# 4. Launch
-docker compose up -d --build
-
-# 5. Auto-renew TLS (add to crontab)
-0 3 * * * certbot renew --quiet && docker compose exec nginx nginx -s reload
-```
-
-**GitHub Actions CI/CD** — add these repository secrets for automatic deploy on push to `main`:
-
-| Secret | Value |
-|--------|-------|
-| `SERVER_HOST` | Server IP or hostname |
-| `SERVER_USER` | SSH username |
-| `SSH_PRIVATE_KEY` | Private key matching server's `authorized_keys` |
-
----
-
-## Tech stack
-
-| Layer | Technology |
-|-------|------------|
-| Language | Python 3.11+ |
-| Backend framework | FastAPI 0.111 |
-| ORM | SQLAlchemy 2.0 (async) |
-| Database | SQLite (aiosqlite) |
-| Data source | yfinance |
-| Data processing | pandas, numpy |
-| ML | scikit-learn (LinearRegression) |
-| Caching | Redis 7 with in-memory TTL fallback |
-| Scheduler | APScheduler 3.10 |
-| Frontend | Vanilla JS ES modules, Chart.js 4.4 |
-| Reverse proxy | Nginx (alpine) |
-| Containerisation | Docker Compose |
-| CI/CD | GitHub Actions |
+Tests run against an in-memory SQLite database — no network calls, no API key needed.
 
 ---
 
 ## Project layout
 
 ```
-.
+stockvision/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py          # FastAPI app, lifespan, CORS
-│   │   ├── config.py        # Settings (pydantic-settings)
-│   │   ├── database.py      # Async SQLAlchemy engine
-│   │   ├── models/          # ORM: Company, StockPrice, DailyMetric, PricePrediction
-│   │   ├── schemas/         # Pydantic response models
-│   │   ├── routers/         # One file per endpoint group
-│   │   ├── services/        # data_fetcher, data_processor, cache, ml_predictor
-│   │   ├── tasks/           # APScheduler jobs
-│   │   └── utils/           # Structured logger
+│   │   ├── main.py           # FastAPI app, lifespan, CORS, auto-seed
+│   │   ├── config.py         # pydantic-settings (.env)
+│   │   ├── database.py       # Async SQLAlchemy engine + session factory
+│   │   ├── models/           # ORM: Company, StockPrice, DailyMetric, PricePrediction
+│   │   ├── schemas/          # Pydantic response models
+│   │   ├── routers/          # One module per endpoint group
+│   │   ├── services/
+│   │   │   ├── data_fetcher.py   # Alpha Vantage client (12 s rate-limit, retry)
+│   │   │   ├── data_processor.py # pandas cleaning + metric upserts
+│   │   │   ├── cache.py          # Redis → in-memory TTL fallback
+│   │   │   └── ml_predictor.py   # LinearRegression train + 7-day forecast
+│   │   ├── tasks/scheduler.py    # APScheduler jobs (07:00 + 16:00 IST)
+│   │   └── utils/logger.py       # Structured JSON logger
 │   ├── tests/
 │   └── requirements.txt
 ├── frontend/
 │   ├── index.html
 │   ├── css/style.css
-│   └── js/                  # api.js, charts.js, components.js, app.js
-├── nginx/nginx.conf
+│   └── js/
+│       ├── api.js        # fetch() wrappers, auto-detects localhost vs /api
+│       ├── charts.js     # Chart.js: candlestick, volume, compare, forecast, heatmap
+│       ├── components.js # DOM builders for sidebar, cards, movers
+│       └── app.js        # State machine, hash router, event wiring
+├── nginx/nginx.conf       # TLS termination + proxy rules
 ├── docker-compose.yml
-├── .github/workflows/       # ci.yml, cd.yml
-└── docs/TECHNICAL.md        # Architecture & internals deep-dive
+├── .env.example
+└── .github/workflows/
+    ├── ci.yml            # PR: ruff lint + pytest + docker build
+    └── cd.yml            # push to main: SSH deploy
 ```
+
+---
+
+## Alpha Vantage free-tier limits
+
+| Limit | Value |
+|-------|-------|
+| Requests / minute | 5 |
+| Requests / day | 25 |
+| History per request | Last 100 trading days (~5 months) |
+
+The daily scheduler uses 20 of the 25 daily calls. A full reseed (20 symbols) takes ~4 minutes.
+
+---
+
+*Built by Harekrishna Bagh as part of an internship at Jarnox.*
